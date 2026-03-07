@@ -18,6 +18,7 @@
       --grid: #d8dee9;
       --axis: #111827;
       --point: #b91c1c;
+      --userpoint: #15803d;
       --compare: #1d4ed8;
       --path1: #0f766e;
       --path2: #ea580c;
@@ -210,6 +211,7 @@
         <canvas id="plane" width="700" height="700" aria-label="גרף קרטזי"></canvas>
         <div class="legend" aria-hidden="true">
           <span><span class="dot" style="background: var(--point);"></span> נקודה</span>
+          <span><span class="dot" style="background: var(--userpoint);"></span> נקודת משתמש</span>
           <span><span class="dot" style="background: var(--path1);"></span> שלב 1: תנועה לפי x</span>
           <span><span class="dot" style="background: var(--path2);"></span> שלב 2: תנועה לפי y</span>
           <span><span class="dot" style="background: var(--compare);"></span> נקודת השוואה (y,x)</span>
@@ -232,6 +234,7 @@
         <div class="btn-row">
           <button class="btn-primary" id="showBtn">הצג נקודה</button>
           <button id="clearBtn">נקה</button>
+          <button id="clearUserPointsBtn">נקה נקודות</button>
           <button class="btn-alt" id="compareBtn">השווה עם היפוך הסדר</button>
         </div>
 
@@ -284,6 +287,7 @@
     const yInput = document.getElementById('yInput');
     const showBtn = document.getElementById('showBtn');
     const clearBtn = document.getElementById('clearBtn');
+    const clearUserPointsBtn = document.getElementById('clearUserPointsBtn');
     const compareBtn = document.getElementById('compareBtn');
 
     const messageEl = document.getElementById('message');
@@ -299,6 +303,7 @@
     let currentPoint = null;
     let comparePoint = null;
     let currentExercise = null;
+    let userPoints = [];
 
     function scale() {
       return canvas.width / (RANGE_MAX - RANGE_MIN + 2);
@@ -509,6 +514,10 @@
         drawPoint(currentPoint.x, currentPoint.y, getComputedStyle(document.documentElement).getPropertyValue('--point').trim(), `(${currentPoint.x},${currentPoint.y})`);
       }
 
+      userPoints.forEach((p) => {
+        drawPoint(p.x, p.y, getComputedStyle(document.documentElement).getPropertyValue('--userpoint').trim(), `(${p.x},${p.y})`);
+      });
+
       if (comparePoint) {
         drawPoint(comparePoint.x, comparePoint.y, getComputedStyle(document.documentElement).getPropertyValue('--compare').trim(), `(${comparePoint.x},${comparePoint.y})`);
       }
@@ -567,11 +576,18 @@
     function resetBoard() {
       currentPoint = null;
       comparePoint = null;
+      userPoints = [];
       xInput.value = '';
       yInput.value = '';
       redraw(1);
       setNotice(messageEl, 'הלוח נוקה.', 'ok');
       explainEl.textContent = 'הזינו ערכי x ו-y ולחצו "הצג נקודה".';
+    }
+
+    function clearUserPoints() {
+      userPoints = [];
+      redraw(1);
+      setNotice(messageEl, 'נקודות המשתמש נוקו.', 'ok');
     }
 
     function randomInt(min, max) {
@@ -641,6 +657,7 @@
 
     showBtn.addEventListener('click', showPoint);
     clearBtn.addEventListener('click', resetBoard);
+    clearUserPointsBtn.addEventListener('click', clearUserPoints);
     compareBtn.addEventListener('click', compareSwapped);
     exerciseBtn.addEventListener('click', generateExercise);
     checkBtn.addEventListener('click', checkAnswer);
@@ -675,6 +692,16 @@
 
     canvas.addEventListener('mouseleave', () => {
       hoverCoords.textContent = 'X: -, Y: -';
+    });
+
+    canvas.addEventListener('click', (event) => {
+      const { x, y } = getMouseIntegerCoords(event);
+      const idx = userPoints.findIndex((p) => p.x === x && p.y === y);
+      if (idx === -1) {
+        userPoints.push({ x, y });
+      }
+      redraw(1);
+      setNotice(messageEl, `נוספה נקודת משתמש ב-${formatPair(x, y)}.`, 'ok');
     });
 
     redraw(1);
