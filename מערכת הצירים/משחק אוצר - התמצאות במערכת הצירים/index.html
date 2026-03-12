@@ -57,6 +57,16 @@
       gap: 8px;
       flex-wrap: wrap;
     }
+    .mode-select {
+      padding: 6px 12px;
+      border-radius: 10px;
+      border: 1px solid #b89a60;
+      background: #fff7dd;
+      font-weight: 700;
+      color: var(--ink);
+      font-family: inherit;
+      cursor: pointer;
+    }
     button {
       border: 0;
       border-radius: 10px;
@@ -195,6 +205,10 @@
     <div class="topbar">
       <div class="title">משחק אוצר: התמצאות במערכת הקרטזית</div>
       <div class="controls">
+        <select id="gameModeSelect" class="mode-select">
+          <option value="normal">מצב רגיל</option>
+          <option value="advanced">מצב מתקדם</option>
+        </select>
         <button id="toggleGridBtn" class="secondary">הסתר רשת</button>
         <label style="display:flex;align-items:center;gap:6px;background:#fff7dd;padding:6px 10px;border-radius:10px;border:1px solid #b89a60;font-weight:700;">
           <input type="checkbox" id="toggleDecorChk" />
@@ -234,7 +248,7 @@
         <div class="card">
           <strong>הסבר:</strong>
           <div>
-            לחצו על הנקודה המתאימה במפה לפי <b>(X,Y)</b>.
+            לחצו על הנקודה המתאימה במפה לפי ההוראות.
             לאחר 3 טעויות אפשר לקבל עזרה.
           </div>
         </div>
@@ -264,6 +278,9 @@
       [1493, 1498, 1515, 1493],
       [1509, 1506, 1497, 1493]
     ];
+    
+    // מילות הסוד למצב המתקדם
+    const ADVANCED_SECRETS = ["אכלת", "פלפל", "שתה", "מיץ"];
 
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
@@ -275,6 +292,7 @@
     const toggleGridBtn = document.getElementById("toggleGridBtn");
     const toggleDecorChk = document.getElementById("toggleDecorChk");
     const restartBtn = document.getElementById("restartBtn");
+    const gameModeSelect = document.getElementById("gameModeSelect");
     const winOverlay = document.getElementById("winOverlay");
     const winText = document.getElementById("winText");
     const winTitle = document.getElementById("winTitle");
@@ -282,6 +300,7 @@
     const confettiHost = document.getElementById("confetti");
 
     const state = {
+      gameMode: "normal", // "normal" or "advanced"
       stageIndex: 0,
       sequence: [],
       stepIndex: 0,
@@ -296,6 +315,7 @@
       player: { x: 0, y: 0 },
       animating: false
     };
+
     const DECOR_SVGS = {
       tree: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect x="42" y="60" width="16" height="30" rx="2" fill="#8B4513" stroke="#4A2710" stroke-width="3"/><circle cx="50" cy="40" r="25" fill="#228B22" stroke="#104A10" stroke-width="3"/><circle cx="35" cy="55" r="15" fill="#228B22" stroke="#104A10" stroke-width="3"/><circle cx="65" cy="55" r="15" fill="#228B22" stroke="#104A10" stroke-width="3"/></svg>`,
       mountain: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><polygon points="50,15 90,85 10,85" fill="#92A8D1" stroke="#4A5568" stroke-width="3"/><polygon points="50,15 65,41 55,35 50,45 45,35 35,41" fill="white" stroke="#4A5568" stroke-width="3" stroke-linejoin="round"/></svg>`,
@@ -384,6 +404,7 @@
 
       return points;
     }
+    
     function randomPointForStage(stage, existingPoints) {
       for (let i = 0; i < 5000; i++) {
         const p = { x: randInt(stage.x[0], stage.x[1]), y: randInt(stage.y[0], stage.y[1]) };
@@ -460,6 +481,7 @@
       });
       ctx.restore();
     }
+    
     function drawDecor(vp) {
       const placements = [
         { key: "tree", x: 70, y: 150, w: 85, h: 85 },
@@ -594,6 +616,14 @@
       ctx.restore();
     }
 
+    function clueToNext(from, to) {
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const dirX = dx > 0 ? `ימינה ${dx}` : dx < 0 ? `שמאלה ${Math.abs(dx)}` : "בלי תזוזה על ציר X";
+      const dirY = dy > 0 ? `למעלה ${dy}` : dy < 0 ? `למטה ${Math.abs(dy)}` : "בלי תזוזה על ציר Y";
+      return { dirX, dirY };
+    }
+
     function stageAndStepText() {
       const s = STAGES[state.stageIndex];
       const currentTarget = state.sequence[state.stepIndex];
@@ -603,17 +633,17 @@
          <div>צעד ${state.stepIndex + 1} מתוך ${state.sequence.length}</div>`;
 
       const isLast = state.stepIndex === state.sequence.length - 1;
-      const extra = isLast ? "זה הצעד האחרון - כאן מחכה האוצר!" : clueToNext(state.player, currentTarget);
-      hintText.innerHTML =
-        `מצאו את הנקודה: <span class="orderedPair">(${currentTarget.x}, ${currentTarget.y})</span><br>${extra}`;
-    }
+      const dirs = clueToNext(state.player, currentTarget);
 
-    function clueToNext(from, to) {
-      const dx = to.x - from.x;
-      const dy = to.y - from.y;
-      const dirX = dx > 0 ? `ימינה ${dx}` : dx < 0 ? `שמאלה ${Math.abs(dx)}` : "בלי תזוזה על ציר X";
-      const dirY = dy > 0 ? `למעלה ${dy}` : dy < 0 ? `למטה ${Math.abs(dy)}` : "בלי תזוזה על ציר Y";
-      return `רמז: מהנקודה הנוכחית זוזו ${dirX}, ואז ${dirY}.`;
+      if (state.gameMode === "normal") {
+          const extra = isLast ? "זה הצעד האחרון - כאן מחכה האוצר!" : `רמז: מהנקודה הנוכחית זוזו ${dirs.dirX}, ואז ${dirs.dirY}.`;
+          hintText.innerHTML =
+            `מצאו את הנקודה: <span class="orderedPair">(${currentTarget.x}, ${currentTarget.y})</span><br>${extra}`;
+      } else {
+          const extra = isLast ? "<br>זה הצעד האחרון - כאן מחכה האוצר!" : "";
+          hintText.innerHTML = 
+            `חשבו לאן צריך להגיע:<br>מהמיקום הנוכחי שלכם זוזו <b>${dirs.dirX}</b>, ואז <b>${dirs.dirY}</b>.${extra}`;
+      }
     }
 
     function render() {
@@ -676,7 +706,11 @@
     function celebrate(stageDone) {
       playWinSound();
       dropConfetti();
-      const stageSecret = decodeStageSecret(stageDone);
+      
+      const stageSecret = state.gameMode === "normal" 
+        ? decodeStageSecret(stageDone)
+        : ADVANCED_SECRETS[stageDone];
+
       winTitle.textContent = "כל הכבוד ! מצאת את האוצר !";
       winText.innerHTML = stageDone < STAGES.length - 1
         ? `סיימת את ${STAGES[stageDone].name}. מילת הסוד שלך: <b>${stageSecret}</b>. מוכנים לשלב הבא?`
@@ -805,6 +839,11 @@
       state.pointer.y = sy;
       hoverXY.textContent = `X: ${sx} , Y: ${sy}`;
     }
+
+    gameModeSelect.addEventListener("change", (e) => {
+      state.gameMode = e.target.value;
+      startStage(0); 
+    });
 
     toggleGridBtn.addEventListener("click", () => {
       state.showGrid = !state.showGrid;
