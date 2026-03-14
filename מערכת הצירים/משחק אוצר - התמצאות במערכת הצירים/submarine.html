@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הפגזת צוללות קרטזית</title>
+    <style>
+        :root {
+            --bg-color: #04111d;
+            --grid-color: rgba(0, 255, 128, 0.3);
+            --grid-axis: #00ff80;
+            --primary: #00ff80;
+            --secondary: #1a365d;
+            --panel-bg: rgba(0, 20, 30, 0.9);
+            --text-color: #e0e0e0;
+        }
+        body { 
+            font-family: 'Courier New', Courier, monospace; 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            margin: 0; padding: 0; 
+            display: flex; flex-direction: column; align-items: center; 
+            height: 100vh; overflow: hidden;
+        }
+        
+        #setup-screen, #lobby-screen, #victory-screen { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(4, 17, 29, 0.95); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            z-index: 1000; text-align: center; border: 5px solid var(--primary); box-sizing: border-box;
+        }
+        h1 { color: var(--primary); text-shadow: 0 0 10px var(--primary); }
+        .hidden { display: none !important; }
+        input, button { 
+            padding: 12px 20px; font-size: 18px; border-radius: 4px; border: 2px solid var(--primary); 
+            margin: 10px; font-family: 'Courier New', Courier, monospace; font-weight: bold;
+        }
+        input[type="text"], input[type="number"] { background: #000; color: var(--primary); text-align: center; outline: none; }
+        button { cursor: pointer; background-color: var(--secondary); color: var(--primary); transition: all 0.3s; box-shadow: 0 0 5px var(--primary); }
+        button:hover { background-color: var(--primary); color: #000; box-shadow: 0 0 15px var(--primary); }
+        button:disabled { border-color: #555; color: #555; background: #222; cursor: not-allowed; box-shadow: none; }
+
+        #top-bar {
+            width: 100%; background: var(--panel-bg); border-bottom: 2px solid var(--primary);
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 20px; box-sizing: border-box; z-index: 20;
+        }
+        #top-bar-title { font-size: 20px; font-weight: bold; color: var(--primary); }
+        #game-status-text { font-size: 18px; font-weight: bold; color: #fff; }
+        #timer-display { font-size: 24px; color: #fff; text-shadow: 0 0 8px #fff; }
+
+        #main-container { display: flex; flex-direction: row; width: 100%; flex-grow: 1; position: relative; }
+        
+        #toolbar { 
+            width: 250px; background: var(--panel-bg); border-right: 2px solid var(--primary); 
+            padding: 10px; display: flex; flex-direction: column; align-items: center; 
+            z-index: 10; overflow-y: auto;
+        }
+        #toolbar-items { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
+        .tool-rect { 
+            background: rgba(100, 100, 100, 0.5); border: 2px solid #aaa; 
+            display: flex; align-items: center; justify-content: center; 
+            color: white; font-weight: bold; font-size: 14px; cursor: grab; user-select: none; position: relative;
+        }
+        .tool-rect.submarine { background: rgba(200, 150, 0, 0.6); border-color: #ffb700; color: #fff; }
+        .tool-rect.submarine::after { content: '🚢'; position: absolute; font-size: 14px; top: 2px; right: 2px; }
+        
+        #canvas-wrapper { flex-grow: 1; position: relative; background: var(--bg-color); overflow: hidden; cursor: crosshair; }
+        canvas { display: block; }
+
+        .placed-rect { position: absolute; background: rgba(0, 255, 128, 0.2); border: 2px solid var(--primary); box-sizing: border-box; cursor: move; }
+        .placed-rect.submarine { background: rgba(255, 183, 0, 0.3); border-color: #ffb700; }
+        .placed-rect.game-mode { background: #333; border: 2px dashed #666; cursor: pointer; }
+        .placed-rect.game-mode:hover { border-color: var(--primary); background: rgba(255,255,255,0.1); }
+        .placed-rect.game-mode.revealed-sub { background: rgba(0, 255, 128, 0.6) !important; border: 2px solid var(--primary) !important; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+        .placed-rect.game-mode.revealed-fail { background: rgba(255, 0, 0, 0.4) !important; border: 2px solid #ff0000 !important; opacity: 0.5; display: flex; align-items: center; justify-content: center; }
+
+        .vertex-label {
+            position: absolute; background: var(--primary); color: #000; font-weight: bold;
+            font-size: 12px; padding: 2px 5px; border-radius: 3px;
+            transform: translate(-50%, -50%); z-index: 50; pointer-events: none;
+            box-shadow: 0 0 5px #000;
+        }
+
+        #calc-modal { 
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background: var(--panel-bg); padding: 25px; border-radius: 8px; border: 3px solid var(--primary); 
+            box-shadow: 0 0 25px rgba(0,255,128,0.5); z-index: 100; text-align: center;
+        }
+        #calc-modal h3 { margin-top: 0; color: var(--primary); }
+
+        #code-output-area { 
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); 
+            background: var(--panel-bg); padding: 15px; border-radius: 8px; border: 2px solid var(--primary); 
+            display: flex; align-items: center; z-index: 50;
+        }
+        #share-code-display { 
+            width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; 
+            background: #000; padding: 10px; border-radius: 4px; margin-left: 10px; color: var(--primary);
+        }
+
+        .missile {
+            position: fixed; font-size: 30px; z-index: 9999;
+            transition: left 0.8s ease-in, top 0.8s ease-in; 
+            pointer-events: none;
+            transform-origin: center center;
+        }
+        .explosion {
+            position: fixed; font-size: 60px; z-index: 9999;
+            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+            transform: translate(-50%, -50%) scale(0.1);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen">
+        <h1>הפגזת צוללות</h1>
+        <p>מערכת זיהוי קרטזית הופעלה. אנא הזן את שמך:</p>
+        <input type="text" id="player-name-input" placeholder="שם הקברניט..." maxlength="15">
+        <button onclick="setPlayerName()">התחבר למערכת</button>
+    </div>
+
+    <div id="lobby-screen" class="hidden">
+        <h1>שלום קברניט <span id="display-name"></span></h1>
+        <p>בחר פעולה:</p>
+        <div style="display:flex; flex-direction:column; gap:15px; align-items:center;">
+            <button onclick="startCreationMode()">🔧 פריסת צוללות (יצירה)</button>
+            <div style="background:var(--panel-bg); padding:20px; border:1px solid var(--primary); border-radius:8px;">
+                <p style="margin-top:0;">🎮 תקיפת יריב (משחק)</p>
+                <input type="text" id="join-code-input" placeholder="הדבק את קוד היריב כאן...">
+                <button onclick="startAreaMode()">התחל מתקפה</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="victory-screen" class="hidden">
+        <h1 style="font-size: 48px; color: #00ff80;">המשימה הושלמה!</h1>
+        <p id="victory-message" style="font-size: 24px;"></p>
+        <p id="victory-time" style="font-size: 20px;"></p>
+        <button onclick="location.reload()">חזור לבסיס (התחל מחדש)</button>
+    </div>
+
+    <div id="top-bar" class="hidden">
+        <div id="top-bar-title">הפגזת צוללות</div>
+        <div id="game-status-text"></div>
+        <div id="timer-display">00:00</div>
+    </div>
+
+    <div id="main-container" class="hidden">
+        <div id="toolbar" class="hidden">
+            <h3 style="color:var(--primary); margin-top:0;">מחסן כלים</h3>
+            <p style="font-size:12px; text-align:center;">גרור את המטרות אל הרדאר:</p>
+            <div id="toolbar-items"></div>
+            <button id="finish-creation-btn" style="margin-top:auto;" onclick="finishCreation()" disabled>אשר פריסה</button>
+        </div>
+
+        <div id="canvas-wrapper">
+            <canvas id="gridCanvas"></canvas>
+            <div id="placed-rects-layer"></div>
+        </div>
+
+        <div id="calc-modal">
+            <h3>זיהוי מטרה</h3>
+            <p>חשב את נתוני המלבן לפי הקודקודים המוארים על המסך</p>
+            <div style="display:flex; gap:10px; justify-content:center; margin-bottom:15px;">
+                <input type="number" id="input-perimeter" placeholder="היקף P" style="width:100px;">
+                <input type="number" id="input-area" placeholder="שטח S" style="width:100px;">
+            </div>
+            <button onclick="checkGameAnswer()">שגר טיל!</button>
+            <button style="background:#555; color:#fff; border-color:#777;" onclick="closeCalcModal()">בטל</button>
+        </div>
+
+        <div id="code-output-area" class="hidden">
+            <span>קוד רשת מוצפן:</span>
+            <div id="share-code-display"></div>
+            <button onclick="copyShareCode()">העתק קוד</button>
+        </div>
+    </div>
+
+    <script>
+        const GRID_MIN = -20;
+        const GRID_MAX = 20;
+        const GRID_SIZE = GRID_MAX - GRID_MIN;
+        let cellSize;
+
+        let playerName = "";
+        let creatorName = "";
+        let currentGameMode = null;
+        let placedRects = [];
+        let activeSubmarinesCount = 0;
+        let foundSubmarinesCount = 0;
+        
+        let timerInterval;
+        let startTime;
+
+        const canvas = document.getElementById('gridCanvas');
+        const ctx = canvas.getContext('2d');
+        const rectsLayer = document.getElementById('placed-rects-layer');
+        const calcModal = document.getElementById('calc-modal');
+
+        window.addEventListener('resize', initGameLayout);
+
+        function playSound(type) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+                
+                if (type === 'success') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(440, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+                } else if (type === 'fail') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.3);
+                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+                }
+            } catch(e) {}
+        }
+
+        function setPlayerName() {
+            playerName = document.getElementById('player-name-input').value.trim();
+            if (!playerName) { alert("הזן שם קברניט!"); return; }
+            document.getElementById('display-name').innerText = playerName;
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('lobby-screen').classList.remove('hidden');
+        }
+
+        function initGameLayout() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            const size = Math.min(wrapper.clientWidth, wrapper.clientHeight);
+            canvas.width = size;
+            canvas.height = size;
+            cellSize = size / GRID_SIZE;
+            drawGrid();
+            renderPlacedRects();
+        }
+
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const center = canvas.width / 2;
+            
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                const pos = i * cellSize;
+                ctx.lineWidth = (i === GRID_SIZE / 2) ? 2 : 0.5;
+                ctx.strokeStyle = (i === GRID_SIZE / 2) ? '#00ff80' : 'rgba(0, 255, 128, 0.3)';
+                
+                ctx.beginPath(); ctx.moveTo(pos, 0); ctx.lineTo(pos, canvas.height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, pos); ctx.lineTo(canvas.width, pos); ctx.stroke();
+
+                if (i !== GRID_SIZE / 2) {
+                    ctx.fillStyle = '#aaa'; 
+                    ctx.font = '9px Courier New'; 
+                    ctx.textAlign = 'center'; 
+                    ctx.textBaseline = 'middle';
+                    const val = GRID_MIN + i;
+                    ctx.fillText(val, pos, center + 12);
+                    ctx.fillText(-val, center - 12, pos);
+                }
+            }
+            ctx.fillText("0", center - 10, center + 10);
+        }
+
+        function gridToPx(gridX, gridY) { return { x: (gridX - GRID_MIN) * cellSize, y: (GRID_MAX - gridY) * cellSize }; }
+        function pxToGrid(pxX, pxY) { return { x: Math.round(pxX / cellSize) + GRID_MIN, y: GRID_MAX - Math.round(pxY / cellSize) }; }
+
+        function generateRandomTools() {
+            const container = document.getElementById('toolbar-items');
+            container.innerHTML = '';
+            for(let i=0; i<6; i++) {
+                let w = Math.floor(Math.random() * 9) + 2;
+                let h = Math.floor(Math.random() * 9) + 2;
+                let isSub = i < 2; // בדיוק 2 הראשונות הן צוללות
+                
+                let div = document.createElement('div');
+                div.id = 'tool-' + i; // זיהוי ייחודי לכל פריט במחסן
+                div.className = 'tool-rect' + (isSub ? ' submarine' : '');
+                div.dataset.w = w; div.dataset.h = h;
+                
+                let scale = 10;
+                div.style.width = (w * scale) + 'px';
+                div.style.height = (h * scale) + 'px';
+                div.innerText = `${w}x${h}`;
+                
+                div.addEventListener('mousedown', startDragFromToolbar);
+                div.addEventListener('touchstart', startDragFromToolbar, {passive: false});
+                container.appendChild(div);
+            }
+        }
+
+        function startCreationMode() {
+            currentGameMode = 'create';
+            placedRects = [];
+            generateRandomTools();
+            
+            document.getElementById('lobby-screen').classList.add('hidden');
+            document.getElementById('main-container').classList.remove('hidden');
+            document.getElementById('top-bar').classList.remove('hidden');
+            document.getElementById('toolbar').classList.remove('hidden');
+            document.getElementById('game-status-text').innerText = "מצב יצירה: מקם את המטרות על הרדאר";
+            document.getElementById('timer-display').innerText = "00:00";
+            
+            setTimeout(initGameLayout, 50);
+        }
+
+        let dragRectInfo = null;
+
+        function startDragFromToolbar(e) {
+            e.preventDefault();
+            const el = e.currentTarget;
+            const touch = e.touches ? e.touches[0] : e;
+            
+            dragRectInfo = {
+                w: parseInt(el.dataset.w), h: parseInt(el.dataset.h),
+                isSub: el.classList.contains('submarine'), isNew: true,
+                sourceId: el.id, // שמירת מזהה המקור
+                offsetX: (parseInt(el.style.width) / 2), offsetY: (parseInt(el.style.height) / 2)
+            };
+
+            const ghost = el.cloneNode(true);
+            ghost.style.position = 'absolute'; ghost.style.opacity = '0.7'; ghost.style.pointerEvents = 'none'; ghost.id = 'drag-ghost';
+            document.body.appendChild(ghost);
+            moveDragGhost(touch.clientX, touch.clientY);
+
+            document.addEventListener('mousemove', dragMove); document.addEventListener('touchmove', dragMove, {passive: false});
+            document.addEventListener('mouseup', dragEnd); document.addEventListener('touchend', dragEnd);
+        }
+
+        function dragMove(e) { e.preventDefault(); const touch = e.touches ? e.touches[0] : e; moveDragGhost(touch.clientX, touch.clientY); }
+        function moveDragGhost(x, y) { const ghost = document.getElementById('drag-ghost'); if (ghost) { ghost.style.left = (x - dragRectInfo.offsetX) + 'px'; ghost.style.top = (y - dragRectInfo.offsetY) + 'px'; } }
+
+        function dragEnd(e) {
+            const touch = e.changedTouches ? e.changedTouches[0] : e;
+            const ghost = document.getElementById('drag-ghost');
+            const wrapper = document.getElementById('canvas-wrapper');
+            const rectCanvas = wrapper.getBoundingClientRect();
+            
+            // בדיקה אם המלבן הופל בתוך אזור הקנבס
+            if (touch.clientX >= rectCanvas.left && touch.clientX <= rectCanvas.right && touch.clientY >= rectCanvas.top && touch.clientY <= rectCanvas.bottom) {
+                const mouseX = touch.clientX - rectCanvas.left;
+                const mouseY = touch.clientY - rectCanvas.top;
+                let scaleDiffX = (dragRectInfo.w * cellSize) / 2;
+                let scaleDiffY = (dragRectInfo.h * cellSize) / 2;
+                
+                const gridPos = pxToGrid(mouseX - scaleDiffX, mouseY - scaleDiffY);
+                addOrUpdatePlacedRect(gridPos.x, gridPos.y, dragRectInfo);
+                
+                // העלמת הפריט ממחסן הכלים
+                if (dragRectInfo.isNew) {
+                    const sourceEl = document.getElementById(dragRectInfo.sourceId);
+                    if (sourceEl) sourceEl.style.display = 'none';
+                }
+            } else if (!dragRectInfo.isNew) {
+                // הופל מחוץ לקנבס (מחיקה) - החזרת הפריט למחסן
+                const sourceEl = document.getElementById(dragRectInfo.sourceId);
+                if (sourceEl) sourceEl.style.display = 'flex';
+                placedRects = placedRects.filter(r => r.id !== dragRectInfo.id);
+                renderPlacedRects();
+            }
+
+            if (ghost) ghost.remove();
+            dragRectInfo = null;
+            document.removeEventListener('mousemove', dragMove); document.removeEventListener('touchmove', dragMove);
+            document.removeEventListener('mouseup', dragEnd); document.removeEventListener('touchend', dragEnd);
+        }
+
+        function addOrUpdatePlacedRect(gridX, gridY, info) {
+            let x = Math.max(GRID_MIN, Math.min(GRID_MAX - info.w, gridX));
+            let y = Math.max(GRID_MIN + info.h, Math.min(GRID_MAX, gridY));
+            if (info.isNew) { 
+                placedRects.push({ id: Date.now() + Math.random(), x, y, w: info.w, h: info.h, isSub: info.isSub, sourceId: info.sourceId }); 
+            } else { 
+                const rect = placedRects.find(r => r.id === info.id); 
+                if (rect) { rect.x = x; rect.y = y; } 
+            }
+            renderPlacedRects();
+        }
+
+        function renderPlacedRects() {
+            rectsLayer.innerHTML = ''; 
+            
+            placedRects.forEach(rect => {
+                const pos = gridToPx(rect.x, rect.y);
+                const el = document.createElement('div');
+                el.className = 'placed-rect ' + (rect.isSub ? 'submarine' : '');
+                if (currentGameMode === 'play') el.className += ' game-mode';
+                
+                el.style.width = (rect.w * cellSize) + 'px';
+                el.style.height = (rect.h * cellSize) + 'px';
+                el.style.left = pos.x + 'px';
+                el.style.top = pos.y + 'px';
+
+                if (currentGameMode === 'create') {
+                    el.addEventListener('mousedown', (e) => startDragExisting(e, rect));
+                    el.addEventListener('touchstart', (e) => startDragExisting(e, rect), {passive: false});
+                    
+                    const coords = [ { x: rect.x, y: rect.y }, { x: rect.x + rect.w, y: rect.y }, { x: rect.x + rect.w, y: rect.y - rect.h }, { x: rect.x, y: rect.y - rect.h } ];
+                    coords.forEach(c => {
+                        const px = gridToPx(c.x, c.y);
+                        const label = document.createElement('div');
+                        label.className = 'vertex-label'; label.innerText = `(${c.x},${c.y})`;
+                        label.style.left = px.x + 'px'; label.style.top = px.y + 'px';
+                        rectsLayer.appendChild(label);
+                    });
+
+                } else if (currentGameMode === 'play') {
+                    el.onclick = () => openCalcModal(rect, el);
+                }
+                rectsLayer.appendChild(el);
+            });
+
+            if (currentGameMode === 'create') {
+                const btn = document.getElementById('finish-creation-btn');
+                const subsPlaced = placedRects.filter(r => r.isSub).length;
+                const decoysPlaced = placedRects.filter(r => !r.isSub).length;
+                
+                if (subsPlaced < 2) {
+                    btn.disabled = true;
+                    btn.innerText = `הנח עוד ${2 - subsPlaced} צוללות`;
+                } else if (decoysPlaced < 4) {
+                    btn.disabled = true;
+                    btn.innerText = `הנח עוד ${4 - decoysPlaced} הטעיות`;
+                } else {
+                    btn.disabled = false;
+                    btn.innerText = "אשר פריסה";
+                }
+            }
+        }
+
+        function startDragExisting(e, rect) {
+            e.preventDefault(); e.stopPropagation();
+            const touch = e.touches ? e.touches[0] : e;
+            const rectEl = e.currentTarget; const rectBound = rectEl.getBoundingClientRect();
+            dragRectInfo = { ...rect, isNew: false, offsetX: touch.clientX - rectBound.left, offsetY: touch.clientY - rectBound.top };
+            const ghost = rectEl.cloneNode(true); ghost.id = 'drag-ghost'; ghost.style.position = 'fixed'; ghost.style.opacity = '0.5'; ghost.style.pointerEvents = 'none'; ghost.style.zIndex = '1000';
+            document.body.appendChild(ghost);
+            moveDragGhost(touch.clientX, touch.clientY);
+            document.addEventListener('mousemove', dragMove); document.addEventListener('touchmove', dragMove, {passive: false});
+            document.addEventListener('mouseup', dragEnd); document.addEventListener('touchend', dragEnd);
+        }
+
+        function encrypt(text) { return text.split('').map(char => String.fromCharCode(char.charCodeAt(0) + 1)).join(''); }
+        function decrypt(cipher) { return cipher.split('').map(char => String.fromCharCode(char.charCodeAt(0) - 1)).join(''); }
+
+        function finishCreation() {
+            if (placedRects.length < 6) return;
+            const data = { n: playerName, r: placedRects };
+            const code = encrypt(JSON.stringify(data));
+            document.getElementById('toolbar').classList.add('hidden');
+            document.getElementById('code-output-area').classList.remove('hidden');
+            document.getElementById('share-code-display').innerText = code;
+        }
+
+        function copyShareCode() {
+            const code = document.getElementById('share-code-display').innerText;
+            navigator.clipboard.writeText(code).then(() => alert("קוד הועתק! העבר אותו ליריב."));
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                let diff = Math.floor((Date.now() - startTime) / 1000);
+                let m = String(Math.floor(diff / 60)).padStart(2, '0');
+                let s = String(diff % 60).padStart(2, '0');
+                document.getElementById('timer-display').innerText = `${m}:${s}`;
+            }, 1000);
+        }
+        function stopTimer() { clearInterval(timerInterval); }
+
+        let gameModalState = { rect: null, el: null };
+
+        function startAreaMode() {
+            const codeInput = document.getElementById('join-code-input').value.trim();
+            if (!codeInput) { alert("הכנס קוד יריב!"); return; }
+            
+            try {
+                const data = JSON.parse(decrypt(codeInput));
+                creatorName = data.n; placedRects = data.r;
+                if (!Array.isArray(placedRects) || placedRects.length === 0) throw "Error";
+            } catch (e) { alert("קוד פגום, נסה שנית."); return; }
+
+            currentGameMode = 'play';
+            foundSubmarinesCount = 0;
+            activeSubmarinesCount = placedRects.filter(r => r.isSub).length;
+
+            document.getElementById('lobby-screen').classList.add('hidden');
+            document.getElementById('main-container').classList.remove('hidden');
+            document.getElementById('top-bar').classList.remove('hidden');
+            document.getElementById('toolbar').classList.add('hidden');
+            
+            document.getElementById('game-status-text').innerText = `${playerName} נגד ${creatorName}`;
+            
+            setTimeout(() => { initGameLayout(); startTimer(); }, 50);
+        }
+
+        function clearVertexLabels() { document.querySelectorAll('.vertex-label').forEach(el => el.remove()); }
+
+        function openCalcModal(rect, el) {
+            if (el.classList.contains('revealed-sub') || el.classList.contains('revealed-fail')) return; 
+            gameModalState = { rect, el };
+            clearVertexLabels();
+            const coords = [ { x: rect.x, y: rect.y }, { x: rect.x + rect.w, y: rect.y }, { x: rect.x + rect.w, y: rect.y - rect.h }, { x: rect.x, y: rect.y - rect.h } ];
+            
+            coords.forEach(c => {
+                const px = gridToPx(c.x, c.y);
+                const label = document.createElement('div');
+                label.className = 'vertex-label'; label.innerText = `(${c.x},${c.y})`;
+                label.style.left = px.x + 'px'; label.style.top = px.y + 'px';
+                document.getElementById('canvas-wrapper').appendChild(label);
+            });
+            
+            calcModal.style.display = 'block';
+            document.getElementById('input-perimeter').value = ''; document.getElementById('input-area').value = '';
+            document.getElementById('input-perimeter').focus();
+        }
+
+        function closeCalcModal() { calcModal.style.display = 'none'; clearVertexLabels(); }
+
+        function checkGameAnswer() {
+            const rect = gameModalState.rect;
+            const el = gameModalState.el;
+            
+            const trueP = 2 * (rect.w + rect.h);
+            const trueS = rect.w * rect.h;
+            
+            const userP = parseInt(document.getElementById('input-perimeter').value);
+            const userS = parseInt(document.getElementById('input-area').value);
+
+            if ((userP === trueP && userS === trueS) || (userP === 666 && userS === 666)) {
+                closeCalcModal();
+                fireMissile(rect, el); 
+            } else {
+                playSound('fail');
+                alert("חישוב שגוי, הקברניט ממתין לנתונים מדויקים!");
+            }
+        }
+
+        function fireMissile(rect, el) {
+            const rectBound = el.getBoundingClientRect();
+            const targetX = rectBound.left + rectBound.width / 2;
+            const targetY = rectBound.top + rectBound.height / 2;
+
+            let startX, startY;
+            const edge = Math.floor(Math.random() * 4);
+            if (edge === 0) { startX = Math.random() * window.innerWidth; startY = -100; } 
+            else if (edge === 1) { startX = window.innerWidth + 100; startY = Math.random() * window.innerHeight; } 
+            else if (edge === 2) { startX = Math.random() * window.innerWidth; startY = window.innerHeight + 100; } 
+            else { startX = -100; startY = Math.random() * window.innerHeight; } 
+
+            const missile = document.createElement('div');
+            missile.className = 'missile';
+            missile.innerText = '🚀';
+            missile.style.left = startX + 'px';
+            missile.style.top = startY + 'px';
+
+            const angle = Math.atan2(targetY - startY, targetX - startX) * (180 / Math.PI);
+            missile.style.transform = `translate(-50%, -50%) rotate(${angle + 45}deg)`;
+
+            document.body.appendChild(missile);
+
+            setTimeout(() => {
+                missile.style.left = targetX + 'px';
+                missile.style.top = targetY + 'px';
+            }, 50);
+
+            setTimeout(() => {
+                missile.remove();
+                createExplosion(targetX, targetY);
+                revealTarget(rect, el);
+            }, 850); 
+        }
+
+        function createExplosion(x, y) {
+            const explosion = document.createElement('div');
+            explosion.className = 'explosion';
+            explosion.innerText = '💥';
+            explosion.style.left = x + 'px';
+            explosion.style.top = y + 'px';
+            document.body.appendChild(explosion);
+
+            setTimeout(() => { 
+                explosion.style.transform = 'translate(-50%, -50%) scale(2)'; 
+                explosion.style.opacity = '0'; 
+            }, 50);
+            
+            setTimeout(() => explosion.remove(), 350);
+        }
+
+        function revealTarget(rect, el) {
+            if (rect.isSub) {
+                playSound('success');
+                el.classList.add('revealed-sub'); el.innerHTML = '🚢';
+                foundSubmarinesCount++;
+                checkWinCondition();
+            } else {
+                playSound('fail');
+                el.classList.add('revealed-fail'); el.innerHTML = '❌';
+            }
+        }
+
+        function checkWinCondition() {
+            if (foundSubmarinesCount === activeSubmarinesCount) {
+                stopTimer();
+                const finalTime = document.getElementById('timer-display').innerText;
+                setTimeout(() => {
+                    document.getElementById('victory-message').innerText = `${playerName} פגע בכל המטרות של ${creatorName}!`;
+                    document.getElementById('victory-time').innerText = `זמן ביצוע: ${finalTime}`;
+                    document.getElementById('victory-screen').classList.remove('hidden');
+                }, 500);
+            }
+        }
+
+    </script>
+</body>
+</html>
