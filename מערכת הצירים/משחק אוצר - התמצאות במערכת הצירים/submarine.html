@@ -126,10 +126,14 @@
         <h1>שלום קברניט <span id="display-name"></span></h1>
         <p>בחר פעולה:</p>
         <div style="display:flex; flex-direction:column; gap:15px; align-items:center;">
-            <button onclick="startCreationMode()">🔧 פריסת צוללות (יצירה)</button>
-            <div style="background:var(--panel-bg); padding:20px; border:1px solid var(--primary); border-radius:8px;">
-                <p style="margin-top:0;">🎮 תקיפת יריב (משחק)</p>
-                <input type="text" id="join-code-input" placeholder="הדבק את קוד היריב כאן...">
+            
+            <button onclick="startComputerMode()" style="background-color: #8e44ad; border-color: #9b59b6; color: white;">🤖 שחק נגד המחשב</button>
+            
+            <button onclick="startCreationMode()">🔧 פריסת צוללות (יצירה לחבר)</button>
+            
+            <div style="background:var(--panel-bg); padding:20px; border:1px solid var(--primary); border-radius:8px; margin-top: 10px;">
+                <p style="margin-top:0;">🎮 תקיפת חבר (הזן קוד)</p>
+                <input type="text" id="join-code-input" placeholder="הדבק את הקוד כאן...">
                 <button onclick="startAreaMode()">התחל מתקפה</button>
             </div>
         </div>
@@ -275,10 +279,10 @@
             for(let i=0; i<6; i++) {
                 let w = Math.floor(Math.random() * 9) + 2;
                 let h = Math.floor(Math.random() * 9) + 2;
-                let isSub = i < 2; // בדיוק 2 הראשונות הן צוללות
+                let isSub = i < 2; 
                 
                 let div = document.createElement('div');
-                div.id = 'tool-' + i; // זיהוי ייחודי לכל פריט במחסן
+                div.id = 'tool-' + i; 
                 div.className = 'tool-rect' + (isSub ? ' submarine' : '');
                 div.dataset.w = w; div.dataset.h = h;
                 
@@ -291,6 +295,55 @@
                 div.addEventListener('touchstart', startDragFromToolbar, {passive: false});
                 container.appendChild(div);
             }
+        }
+
+        // פונקציה ליצירת לוח רנדומלי נגד המחשב ללא חפיפות
+        function generateComputerBoard() {
+            let rects = [];
+            let attempts = 0;
+            
+            while (rects.length < 6 && attempts < 1000) {
+                attempts++;
+                let isSub = rects.length < 2; // 2 הראשונים הם צוללות
+                let w = Math.floor(Math.random() * 9) + 2;
+                let h = Math.floor(Math.random() * 9) + 2;
+                
+                let x = Math.floor(Math.random() * (GRID_SIZE - w + 1)) + GRID_MIN;
+                let y = Math.floor(Math.random() * (GRID_SIZE - h + 1)) + GRID_MIN + h;
+                
+                // בדיקת חפיפה עם מלבנים קיימים
+                let overlap = false;
+                for (let r of rects) {
+                    // כדי שלא תהיה חפיפה: אחד צריך להיות לחלוטין משמאל, ימין, למעלה או למטה מהשני
+                    if (!(x + w <= r.x || x >= r.x + r.w || y - h >= r.y || y <= r.y - r.h)) {
+                        overlap = true;
+                        break;
+                    }
+                }
+                
+                if (!overlap) {
+                    rects.push({ id: Date.now() + Math.random(), x, y, w, h, isSub });
+                }
+            }
+            return rects;
+        }
+
+        function startComputerMode() {
+            creatorName = "המחשב";
+            placedRects = generateComputerBoard();
+            
+            currentGameMode = 'play';
+            foundSubmarinesCount = 0;
+            activeSubmarinesCount = 2;
+
+            document.getElementById('lobby-screen').classList.add('hidden');
+            document.getElementById('main-container').classList.remove('hidden');
+            document.getElementById('top-bar').classList.remove('hidden');
+            document.getElementById('toolbar').classList.add('hidden');
+            
+            document.getElementById('game-status-text').innerText = `${playerName} נגד ${creatorName}`;
+            
+            setTimeout(() => { initGameLayout(); startTimer(); }, 50);
         }
 
         function startCreationMode() {
@@ -318,7 +371,7 @@
             dragRectInfo = {
                 w: parseInt(el.dataset.w), h: parseInt(el.dataset.h),
                 isSub: el.classList.contains('submarine'), isNew: true,
-                sourceId: el.id, // שמירת מזהה המקור
+                sourceId: el.id, 
                 offsetX: (parseInt(el.style.width) / 2), offsetY: (parseInt(el.style.height) / 2)
             };
 
@@ -340,7 +393,6 @@
             const wrapper = document.getElementById('canvas-wrapper');
             const rectCanvas = wrapper.getBoundingClientRect();
             
-            // בדיקה אם המלבן הופל בתוך אזור הקנבס
             if (touch.clientX >= rectCanvas.left && touch.clientX <= rectCanvas.right && touch.clientY >= rectCanvas.top && touch.clientY <= rectCanvas.bottom) {
                 const mouseX = touch.clientX - rectCanvas.left;
                 const mouseY = touch.clientY - rectCanvas.top;
@@ -350,13 +402,11 @@
                 const gridPos = pxToGrid(mouseX - scaleDiffX, mouseY - scaleDiffY);
                 addOrUpdatePlacedRect(gridPos.x, gridPos.y, dragRectInfo);
                 
-                // העלמת הפריט ממחסן הכלים
                 if (dragRectInfo.isNew) {
                     const sourceEl = document.getElementById(dragRectInfo.sourceId);
                     if (sourceEl) sourceEl.style.display = 'none';
                 }
             } else if (!dragRectInfo.isNew) {
-                // הופל מחוץ לקנבס (מחיקה) - החזרת הפריט למחסן
                 const sourceEl = document.getElementById(dragRectInfo.sourceId);
                 if (sourceEl) sourceEl.style.display = 'flex';
                 placedRects = placedRects.filter(r => r.id !== dragRectInfo.id);
