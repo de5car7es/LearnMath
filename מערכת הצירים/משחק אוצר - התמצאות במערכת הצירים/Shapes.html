@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת צירים אינטראקטיבית</title>
+    <style>
+        :root {
+            --bg-color: #04111d;
+            --grid-color: rgba(0, 255, 128, 0.3);
+            --grid-axis: #00ff80;
+            --primary: #00ff80;
+            --secondary: #1a365d;
+            --panel-bg: rgba(0, 20, 30, 0.9);
+            --text-color: #e0e0e0;
+            --danger: #ff4444;
+        }
+        body { 
+            font-family: 'Courier New', Courier, monospace; 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            margin: 0; padding: 0; 
+            display: flex; height: 100vh; overflow: hidden;
+            user-select: none;
+        }
+        
+        button { 
+            padding: 8px 12px; font-size: 16px; border-radius: 4px; border: 2px solid var(--primary); 
+            font-family: 'Courier New', Courier, monospace; font-weight: bold;
+            cursor: pointer; background-color: var(--secondary); color: var(--primary); 
+            transition: all 0.2s; box-shadow: 0 0 5px rgba(0,255,128,0.2);
+            margin-bottom: 10px; width: 100%; box-sizing: border-box;
+        }
+        button:hover { background-color: var(--primary); color: #000; box-shadow: 0 0 10px var(--primary); }
+        button.active { background-color: var(--primary); color: #000; box-shadow: 0 0 15px var(--primary); }
+
+        #sidebar { 
+            width: 300px; background: var(--panel-bg); border-left: 2px solid var(--primary); 
+            padding: 15px; display: flex; flex-direction: column; z-index: 10;
+            box-sizing: border-box;
+        }
+        
+        #sidebar h2, #sidebar h3 { color: var(--primary); text-align: center; margin-top: 0; }
+        
+        textarea {
+            width: 100%; background: #000; color: var(--primary);
+            border: 2px solid var(--primary); border-radius: 4px;
+            padding: 8px; font-family: 'Courier New', Courier, monospace;
+            font-size: 14px; box-sizing: border-box; resize: none;
+            margin-bottom: 20px; outline: none;
+        }
+        
+        .tools-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;
+        }
+
+        #delete-zone {
+            margin-top: auto; padding: 20px; text-align: center;
+            border: 2px dashed #555; color: #777; border-radius: 8px;
+            transition: all 0.3s;
+        }
+        #delete-zone.drag-over {
+            border-color: var(--danger); color: var(--danger); background: rgba(255,0,0,0.1);
+        }
+
+        #canvas-wrapper { 
+            flex-grow: 1; position: relative; background: var(--bg-color); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        
+        #view-controls {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; z-index: 20; background: var(--panel-bg);
+            padding: 10px; border-radius: 8px; border: 1px solid var(--primary);
+        }
+        #view-controls button { margin: 0; width: auto; font-size: 14px; }
+
+        canvas { 
+            background: var(--bg-color); 
+            cursor: crosshair;
+            box-shadow: 0 0 20px rgba(0,255,128,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>מערכת קרטזית</h2>
+        
+        <textarea rows="5" placeholder="הערות לשיעור (טקסט חופשי)..."></textarea>
+        
+        <h3>כלי שרטוט</h3>
+        <button id="btn-select" class="active" onclick="setMode('select')">👆 בחירה / גרירה</button>
+        <button id="btn-line" onclick="setMode('line')">➖ קו (2 נקודות)</button>
+        <button id="btn-rect" onclick="setMode('rect')">⬜ מלבן (2 נקודות)</button>
+        <button id="btn-triangle" onclick="setMode('triangle')">📐 משולש (3 נקודות)</button>
+        
+        <div style="font-size: 12px; color: #888; text-align: center; margin-top: 10px; line-height: 1.5;">
+            * כדי לשרטט צורה, בחר כלי ולחץ על המסך.<br>
+            * במצב "בחירה", ניתן לגרור צורות או קודקודים.
+        </div>
+        
+        <button onclick="clearAll()" style="background-color: #330000; border-color: var(--danger); color: var(--danger); margin-top: 15px;">🗑️ נקה לוח</button>
+
+        <div id="delete-zone">
+            גרור צורה לכאן<br>כדי למחוק אותה
+        </div>
+    </div>
+
+    <div id="canvas-wrapper">
+        <div id="view-controls">
+            <button onclick="setView('all')" id="btn-view-all" class="active">כל המערכת</button>
+            <button onclick="setView('q3')" id="btn-view-q3">רביעים 1-3</button>
+            <button onclick="setView('q2')" id="btn-view-q2">רביעים 1-2</button>
+            <button onclick="setView('q1')" id="btn-view-q1">רביע 1</button>
+        </div>
+        <canvas id="gridCanvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gridCanvas');
+        const ctx = canvas.getContext('2d');
+        const sidebar = document.getElementById('sidebar');
+        const deleteZone = document.getElementById('delete-zone');
+
+        // State variables
+        let currentMode = 'select'; // select, line, rect, triangle
+        let currentViewMode = 'all'; // all, q1, q2, q3
+        let shapes = [];
+        let pendingPoints = [];
+        let viewBounds = { minX: -20, maxX: 20, minY: -20, maxY: 20 };
+        
+        // Dragging state
+        let dragInfo = null;
+        let hoverInfo = null;
+        let mousePos = { x: 0, y: 0 }; 
+
+        // Viewport settings
+        function setView(viewMode) {
+            document.querySelectorAll('#view-controls button').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-view-' + viewMode).classList.add('active');
+
+            currentViewMode = viewMode;
+
+            if (viewMode === 'all') viewBounds = { minX: -20, maxX: 20, minY: -20, maxY: 20 };
+            else if (viewMode === 'q1') viewBounds = { minX: 0, maxX: 20, minY: 0, maxY: 20 };
+            else if (viewMode === 'q2') viewBounds = { minX: -20, maxX: 20, minY: 0, maxY: 20 };
+            else if (viewMode === 'q3') viewBounds = { minX: -20, maxX: 20, minY: -20, maxY: 20 };
+            
+            resizeCanvas();
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            pendingPoints = [];
+            document.querySelectorAll('#sidebar button[id^="btn-"]').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + mode).classList.add('active');
+            render();
+        }
+
+        function clearAll() {
+            shapes = [];
+            pendingPoints = [];
+            render();
+        }
+
+        // Setup Canvas
+        function resizeCanvas() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            const size = Math.min(wrapper.clientWidth - 40, wrapper.clientHeight - 80);
+            canvas.width = size;
+            canvas.height = size;
+            render();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Coordinate Conversions
+        function getCellSize() {
+            const cols = viewBounds.maxX - viewBounds.minX;
+            return canvas.width / cols;
+        }
+
+        function gridToPx(gx, gy) {
+            const cellSize = getCellSize();
+            const x = (gx - viewBounds.minX) * cellSize;
+            const y = (viewBounds.maxY - gy) * cellSize;
+            return { x, y };
+        }
+
+        function pxToGrid(px, py) {
+            const cellSize = getCellSize();
+            let gx = Math.round(viewBounds.minX + (px / cellSize));
+            let gy = Math.round(viewBounds.maxY - (py / cellSize));
+            return { x: gx, y: gy };
+        }
+
+        // Drawing Functions
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const cellSize = getCellSize();
+            
+            ctx.textAlign = 'center'; 
+            ctx.textBaseline = 'middle';
+
+            // Draw grid lines
+            for (let x = viewBounds.minX; x <= viewBounds.maxX; x++) {
+                const px = gridToPx(x, 0).x;
+                ctx.lineWidth = (x === 0) ? 2 : 0.5;
+                ctx.strokeStyle = (x === 0) ? '#00ff80' : 'rgba(0, 255, 128, 0.3)';
+                
+                let startY = 0;
+                let endY = canvas.height;
+                
+                // הסתרת הקווים ברביע הרביעי כאשר מציגים רק עד רביע 3
+                if (currentViewMode === 'q3' && x > 0) {
+                    endY = gridToPx(0, 0).y;
+                }
+
+                ctx.beginPath(); ctx.moveTo(px, startY); ctx.lineTo(px, endY); ctx.stroke();
+                
+                if (x !== 0) {
+                    ctx.fillStyle = '#aaa'; ctx.font = '12px Courier New';
+                    const yPos = Math.max(0, Math.min(canvas.height, gridToPx(0, 0).y));
+                    
+                    let textY = yPos + 15;
+                    if (yPos >= canvas.height - 20) textY = yPos - 12;
+                    ctx.fillText(x, px, textY);
+                }
+            }
+
+            for (let y = viewBounds.minY; y <= viewBounds.maxY; y++) {
+                const py = gridToPx(0, y).y;
+                ctx.lineWidth = (y === 0) ? 2 : 0.5;
+                ctx.strokeStyle = (y === 0) ? '#00ff80' : 'rgba(0, 255, 128, 0.3)';
+                
+                let startX = 0;
+                let endX = canvas.width;
+                
+                // הסתרת הקווים ברביע הרביעי כאשר מציגים רק עד רביע 3
+                if (currentViewMode === 'q3' && y < 0) {
+                    endX = gridToPx(0, 0).x;
+                }
+
+                ctx.beginPath(); ctx.moveTo(startX, py); ctx.lineTo(endX, py); ctx.stroke();
+                
+                if (y !== 0) {
+                    ctx.fillStyle = '#aaa'; ctx.font = '12px Courier New';
+                    const xPos = Math.max(0, Math.min(canvas.width, gridToPx(0, 0).x));
+                    
+                    let textX = xPos - 15;
+                    if (xPos <= 20) textX = xPos + 15; 
+                    else if (xPos >= canvas.width - 20) textX = xPos - 15;
+                    
+                    ctx.fillText(y, textX, py);
+                }
+            }
+            
+            // Origin
+            if (viewBounds.minX <= 0 && viewBounds.maxX >= 0 && viewBounds.minY <= 0 && viewBounds.maxY >= 0) {
+                const origin = gridToPx(0, 0);
+                let oX = origin.x - 12;
+                let oY = origin.y + 15;
+                if (origin.x <= 20) oX = origin.x + 12;
+                if (origin.y >= canvas.height - 20) oY = origin.y - 12;
+                
+                ctx.fillStyle = '#aaa'; ctx.fillText("0", oX, oY);
+            }
+        }
+
+        function drawShapes() {
+            shapes.forEach(shape => drawShape(shape, false));
+            if (pendingPoints.length > 0) {
+                const tempShape = { type: currentMode, pts: [...pendingPoints, mousePos] };
+                drawShape(tempShape, true);
+            }
+        }
+
+        function drawShape(shape, isPreview) {
+            if (shape.pts.length === 0) return;
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = isPreview ? 'rgba(0, 255, 128, 0.5)' : '#00ff80';
+            ctx.fillStyle = isPreview ? 'rgba(0, 255, 128, 0.1)' : 'rgba(0, 20, 40, 0.6)';
+
+            ctx.beginPath();
+            
+            if (shape.type === 'line') {
+                const p1 = gridToPx(shape.pts[0].x, shape.pts[0].y);
+                ctx.moveTo(p1.x, p1.y);
+                if (shape.pts.length > 1) {
+                    const p2 = gridToPx(shape.pts[1].x, shape.pts[1].y);
+                    ctx.lineTo(p2.x, p2.y);
+                }
+                ctx.stroke();
+            } 
+            else if (shape.type === 'rect') {
+                if (shape.pts.length > 1) {
+                    const p1 = shape.pts[0];
+                    const p2 = shape.pts[1];
+                    const px1 = gridToPx(p1.x, p1.y);
+                    const px2 = gridToPx(p2.x, p2.y);
+                    const minX = Math.min(px1.x, px2.x);
+                    const minY = Math.min(px1.y, px2.y);
+                    const w = Math.abs(px2.x - px1.x);
+                    const h = Math.abs(px2.y - px1.y);
+                    
+                    ctx.fillRect(minX, minY, w, h);
+                    ctx.strokeRect(minX, minY, w, h);
+                } else {
+                    const p = gridToPx(shape.pts[0].x, shape.pts[0].y);
+                    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            else if (shape.type === 'triangle') {
+                const p1 = gridToPx(shape.pts[0].x, shape.pts[0].y);
+                ctx.moveTo(p1.x, p1.y);
+                for(let i=1; i<shape.pts.length; i++) {
+                    const p = gridToPx(shape.pts[i].x, shape.pts[i].y);
+                    ctx.lineTo(p.x, p.y);
+                }
+                if (shape.pts.length === 3) ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            if (!isPreview) {
+                let displayPts = shape.pts;
+                if (shape.type === 'rect') {
+                    const p1 = shape.pts[0]; const p2 = shape.pts[1];
+                    displayPts = [
+                        {x: p1.x, y: p1.y}, {x: p2.x, y: p1.y},
+                        {x: p2.x, y: p2.y}, {x: p1.x, y: p2.y}
+                    ];
+                }
+
+                displayPts.forEach((pt, idx) => {
+                    const px = gridToPx(pt.x, pt.y);
+                    
+                    if (hoverInfo && hoverInfo.type === 'vertex' && hoverInfo.shape === shape && hoverInfo.vIndex === idx) {
+                        ctx.fillStyle = '#fff';
+                        ctx.beginPath(); ctx.arc(px.x, px.y, 6, 0, Math.PI * 2); ctx.fill();
+                    }
+
+                    ctx.fillStyle = '#ffb700';
+                    ctx.beginPath(); ctx.arc(px.x, px.y, 4, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = '#000'; ctx.stroke();
+
+                    const text = `(${pt.x},${pt.y})`;
+                    ctx.font = 'bold 12px Courier New';
+                    const textWidth = ctx.measureText(text).width;
+                    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                    ctx.fillRect(px.x + 8, px.y - 18, textWidth + 4, 16);
+                    
+                    ctx.fillStyle = '#00ff80';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(text, px.x + 10, px.y - 10);
+                });
+            }
+        }
+
+        function render() {
+            drawGrid();
+            drawShapes();
+        }
+
+        // Interaction Logic
+        function getEventPoint(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { px: clientX - rect.left, py: clientY - rect.top, clientX, clientY };
+        }
+
+        function hitTest(gridPt) {
+            for (let s of shapes) {
+                let ptsToCheck = s.pts;
+                if (s.type === 'rect') {
+                    const p1 = s.pts[0], p2 = s.pts[1];
+                    ptsToCheck = [ {x: p1.x, y: p1.y}, {x: p2.x, y: p1.y}, {x: p2.x, y: p2.y}, {x: p1.x, y: p2.y} ];
+                }
+                for (let i = 0; i < ptsToCheck.length; i++) {
+                    if (ptsToCheck[i].x === gridPt.x && ptsToCheck[i].y === gridPt.y) return { type: 'vertex', shape: s, vIndex: i };
+                }
+            }
+            
+            for (let s of shapes) {
+                if (s.type === 'rect') {
+                    const minX = Math.min(s.pts[0].x, s.pts[1].x);
+                    const maxX = Math.max(s.pts[0].x, s.pts[1].x);
+                    const minY = Math.min(s.pts[0].y, s.pts[1].y);
+                    const maxY = Math.max(s.pts[0].y, s.pts[1].y);
+                    if (gridPt.x >= minX && gridPt.x <= maxX && gridPt.y >= minY && gridPt.y <= maxY) return { type: 'shape', shape: s };
+                }
+                else if (s.type === 'triangle') {
+                    const xs = s.pts.map(p => p.x); const ys = s.pts.map(p => p.y);
+                    if (gridPt.x >= Math.min(...xs) && gridPt.x <= Math.max(...xs) && 
+                        gridPt.y >= Math.min(...ys) && gridPt.y <= Math.max(...ys)) return { type: 'shape', shape: s };
+                }
+                else if (s.type === 'line') {
+                    const p1 = s.pts[0], p2 = s.pts[1];
+                    const minX = Math.min(p1.x, p2.x), maxX = Math.max(p1.x, p2.x);
+                    const minY = Math.min(p1.y, p2.y), maxY = Math.max(p1.y, p2.y);
+                    if (gridPt.x >= minX - 1 && gridPt.x <= maxX + 1 && gridPt.y >= minY - 1 && gridPt.y <= maxY + 1) return { type: 'shape', shape: s };
+                }
+            }
+            return null;
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button !== 0 && !e.touches) return; 
+            const { px, py } = getEventPoint(e);
+            const gridPt = pxToGrid(px, py);
+
+            if (currentMode === 'select') {
+                const hit = hitTest(gridPt);
+                if (hit) dragInfo = { ...hit, startX: gridPt.x, startY: gridPt.y, origShapePts: hit.shape.pts.map(p => ({...p})) };
+            } else {
+                pendingPoints.push(gridPt);
+                if ((currentMode === 'line' && pendingPoints.length === 2) ||
+                    (currentMode === 'rect' && pendingPoints.length === 2) ||
+                    (currentMode === 'triangle' && pendingPoints.length === 3)) {
+                    shapes.push({ type: currentMode, pts: [...pendingPoints], id: Date.now() });
+                    pendingPoints = [];
+                    setMode('select'); 
+                }
+                render();
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const { px, py, clientX, clientY } = getEventPoint(e);
+            mousePos = pxToGrid(px, py); 
+
+            if (dragInfo) {
+                const dx = mousePos.x - dragInfo.startX;
+                const dy = mousePos.y - dragInfo.startY;
+
+                if (dragInfo.type === 'shape') {
+                    for (let i = 0; i < dragInfo.shape.pts.length; i++) {
+                        dragInfo.shape.pts[i].x = dragInfo.origShapePts[i].x + dx;
+                        dragInfo.shape.pts[i].y = dragInfo.origShapePts[i].y + dy;
+                    }
+                } else if (dragInfo.type === 'vertex') {
+                    if (dragInfo.shape.type === 'rect') {
+                        const idx = dragInfo.vIndex;
+                        const p1 = dragInfo.shape.pts[0];
+                        const p2 = dragInfo.shape.pts[1];
+                        if (idx === 0) { p1.x = mousePos.x; p1.y = mousePos.y; } 
+                        else if (idx === 1) { p2.x = mousePos.x; p1.y = mousePos.y; } 
+                        else if (idx === 2) { p2.x = mousePos.x; p2.y = mousePos.y; } 
+                        else if (idx === 3) { p1.x = mousePos.x; p2.y = mousePos.y; } 
+                    } else {
+                        dragInfo.shape.pts[dragInfo.vIndex].x = dragInfo.origShapePts[dragInfo.vIndex].x + dx;
+                        dragInfo.shape.pts[dragInfo.vIndex].y = dragInfo.origShapePts[dragInfo.vIndex].y + dy;
+                    }
+                }
+
+                const sidebarRect = sidebar.getBoundingClientRect();
+                if (clientX > sidebarRect.left) deleteZone.classList.add('drag-over');
+                else deleteZone.classList.remove('drag-over');
+
+            } else if (currentMode === 'select') {
+                const prevHover = hoverInfo;
+                hoverInfo = hitTest(mousePos);
+                if (hoverInfo !== prevHover) canvas.style.cursor = hoverInfo ? (hoverInfo.type === 'vertex' ? 'move' : 'pointer') : 'crosshair';
+            }
+            render();
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (dragInfo) {
+                const clientX = e.touches ? e.changedTouches[0].clientX : e.clientX;
+                const sidebarRect = sidebar.getBoundingClientRect();
+                
+                if (clientX > sidebarRect.left) shapes = shapes.filter(s => s !== dragInfo.shape);
+                
+                deleteZone.classList.remove('drag-over');
+                dragInfo = null;
+                render();
+            }
+        });
+
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); canvas.dispatchEvent(new MouseEvent('mousedown', e.touches[0])); }, {passive: false});
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); canvas.dispatchEvent(new MouseEvent('mousemove', e.touches[0])); }, {passive: false});
+        window.addEventListener('touchend', (e) => { window.dispatchEvent(new MouseEvent('mouseup', e.changedTouches[0])); });
+
+        setView('all');
+    </script>
+</body>
+</html>
