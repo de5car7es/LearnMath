@@ -33,12 +33,14 @@
         .hidden { display: none !important; }
         input, button { 
             padding: 12px 20px; font-size: 18px; border-radius: 4px; border: 2px solid var(--primary); 
-            margin: 10px; font-family: 'Courier New', Courier, monospace; font-weight: bold;
+            margin: 5px; font-family: 'Courier New', Courier, monospace; font-weight: bold;
         }
         input[type="text"], input[type="number"] { background: #000; color: var(--primary); text-align: center; outline: none; }
         button { cursor: pointer; background-color: var(--secondary); color: var(--primary); transition: all 0.3s; box-shadow: 0 0 5px var(--primary); }
         button:hover { background-color: var(--primary); color: #000; box-shadow: 0 0 15px var(--primary); }
         button:disabled { border-color: #555; color: #555; background: #222; cursor: not-allowed; box-shadow: none; }
+        .btn-adv { border-color: #f39c12; color: #f39c12; }
+        .btn-adv:hover { background-color: #f39c12; color: #000; box-shadow: 0 0 15px #f39c12; }
 
         #top-bar {
             width: 100%; background: var(--panel-bg); border-bottom: 2px solid var(--primary);
@@ -57,23 +59,30 @@
             z-index: 10; overflow-y: auto;
         }
         #toolbar-items { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
-        .tool-rect { 
+        .tool-shape { 
             background: rgba(100, 100, 100, 0.5); border: 2px solid #aaa; 
             display: flex; align-items: center; justify-content: center; 
             color: white; font-weight: bold; font-size: 14px; cursor: grab; user-select: none; position: relative;
+            box-sizing: border-box;
         }
-        .tool-rect.submarine { background: rgba(200, 150, 0, 0.6); border-color: #ffb700; color: #fff; }
-        .tool-rect.submarine::after { content: '🚢'; position: absolute; font-size: 14px; top: 2px; right: 2px; }
+        .tool-shape.submarine { background: rgba(200, 150, 0, 0.6); border-color: #ffb700; color: #fff; }
+        .tool-shape.submarine::after { content: '🚢'; position: absolute; font-size: 14px; top: 2px; right: 2px; }
+        
+        /* משולשים */
+        .triangle { clip-path: var(--clip, polygon(0 0, 100% 0, 0 100%)); border: none !important; }
+        .triangle::before { content:''; position:absolute; top:0; left:0; width:100%; height:100%; box-shadow: inset 0 0 0 2px #aaa; pointer-events:none; }
+        .triangle.submarine::before { box-shadow: inset 0 0 0 2px #ffb700; }
+        .placed-shape.triangle::before { box-shadow: inset 0 0 0 2px var(--primary); }
         
         #canvas-wrapper { flex-grow: 1; position: relative; background: var(--bg-color); overflow: hidden; cursor: crosshair; }
         canvas { display: block; }
 
-        .placed-rect { position: absolute; background: rgba(0, 255, 128, 0.2); border: 2px solid var(--primary); box-sizing: border-box; cursor: move; }
-        .placed-rect.submarine { background: rgba(255, 183, 0, 0.3); border-color: #ffb700; }
-        .placed-rect.game-mode { background: #333; border: 2px dashed #666; cursor: pointer; }
-        .placed-rect.game-mode:hover { border-color: var(--primary); background: rgba(255,255,255,0.1); }
-        .placed-rect.game-mode.revealed-sub { background: rgba(0, 255, 128, 0.6) !important; border: 2px solid var(--primary) !important; display: flex; align-items: center; justify-content: center; font-size: 24px; }
-        .placed-rect.game-mode.revealed-fail { background: rgba(255, 0, 0, 0.4) !important; border: 2px solid #ff0000 !important; opacity: 0.5; display: flex; align-items: center; justify-content: center; }
+        .placed-shape { position: absolute; background: rgba(0, 255, 128, 0.2); border: 2px solid var(--primary); box-sizing: border-box; cursor: move; }
+        .placed-shape.submarine { background: rgba(255, 183, 0, 0.3); border-color: #ffb700; }
+        .placed-shape.game-mode { background: #333; border: 2px dashed #666; cursor: pointer; }
+        .placed-shape.game-mode:hover { border-color: var(--primary); background: rgba(255,255,255,0.1); }
+        .placed-shape.game-mode.revealed-sub { background: rgba(0, 255, 128, 0.6) !important; border: 2px solid var(--primary) !important; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+        .placed-shape.game-mode.revealed-fail { background: rgba(255, 0, 0, 0.4) !important; border: 2px solid #ff0000 !important; opacity: 0.5; display: flex; align-items: center; justify-content: center; }
 
         .vertex-label {
             position: absolute; background: var(--primary); color: #000; font-weight: bold;
@@ -92,25 +101,16 @@
         #code-output-area { 
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); 
             background: var(--panel-bg); padding: 15px; border-radius: 8px; border: 2px solid var(--primary); 
-            display: flex; align-items: center; z-index: 50;
+            display: flex; flex-direction: column; align-items: center; z-index: 50; gap: 10px;
         }
+        .code-row { display: flex; align-items: center; }
         #share-code-display { 
             width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; 
             background: #000; padding: 10px; border-radius: 4px; margin-left: 10px; color: var(--primary);
         }
 
-        .missile {
-            position: fixed; font-size: 30px; z-index: 9999;
-            transition: left 0.8s ease-in, top 0.8s ease-in; 
-            pointer-events: none;
-            transform-origin: center center;
-        }
-        .explosion {
-            position: fixed; font-size: 60px; z-index: 9999;
-            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
-            transform: translate(-50%, -50%) scale(0.1);
-            pointer-events: none;
-        }
+        .missile { position: fixed; font-size: 30px; z-index: 9999; transition: left 0.4s ease-in, top 0.4s ease-in; pointer-events: none; transform-origin: center center; }
+        .explosion { position: fixed; font-size: 50px; z-index: 9999; transition: transform 0.2s ease-out, opacity 0.2s ease-out; transform: translate(-50%, -50%) scale(0.1); pointer-events: none; }
     </style>
 </head>
 <body>
@@ -124,18 +124,25 @@
 
     <div id="lobby-screen" class="hidden">
         <h1>שלום קברניט <span id="display-name"></span></h1>
-        <p>בחר פעולה:</p>
-        <div style="display:flex; flex-direction:column; gap:15px; align-items:center;">
-            
-            <button onclick="startComputerMode()" style="background-color: #8e44ad; border-color: #9b59b6; color: white;">🤖 שחק נגד המחשב</button>
-            
-            <button onclick="startCreationMode()">🔧 פריסת צוללות (יצירה לחבר)</button>
-            
-            <div style="background:var(--panel-bg); padding:20px; border:1px solid var(--primary); border-radius:8px; margin-top: 10px;">
-                <p style="margin-top:0;">🎮 תקיפת חבר (הזן קוד)</p>
-                <input type="text" id="join-code-input" placeholder="הדבק את הקוד כאן...">
-                <button onclick="startAreaMode()">התחל מתקפה</button>
+        
+        <div style="display:flex; gap: 30px; margin-top: 20px;">
+            <div style="display:flex; flex-direction:column; align-items:center; background:rgba(0,255,128,0.1); padding:20px; border:1px solid var(--primary); border-radius:8px;">
+                <h3 style="color:var(--primary); margin-top:0;">מערך מלבנים (בסיסי)</h3>
+                <button onclick="startComputerMode('rect')">🤖 נגד המחשב (מלבנים)</button>
+                <button onclick="startCreationMode('rect')">🔧 יצירת לוח מלבנים לחבר</button>
             </div>
+            
+            <div style="display:flex; flex-direction:column; align-items:center; background:rgba(243, 156, 18, 0.1); padding:20px; border:1px solid #f39c12; border-radius:8px;">
+                <h3 style="color:#f39c12; margin-top:0;">מערך משולשים (מתקדם)</h3>
+                <button class="btn-adv" onclick="startComputerMode('triangle')">🤖 נגד המחשב (משולשים)</button>
+                <button class="btn-adv" onclick="startCreationMode('triangle')">📐 יצירת לוח משולשים לחבר</button>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; background:var(--panel-bg); padding:20px; border:1px solid #fff; border-radius:8px;">
+            <p style="margin-top:0; font-weight:bold;">🎮 מתקפה נגד חבר (הזן קוד)</p>
+            <input type="text" id="join-code-input" placeholder="הדבק כאן קוד... (מלבן/משולש)">
+            <button style="border-color:#fff; color:#fff;" onclick="startAreaMode()">התחל מתקפה</button>
         </div>
     </div>
 
@@ -143,7 +150,7 @@
         <h1 style="font-size: 48px; color: #00ff80;">המשימה הושלמה!</h1>
         <p id="victory-message" style="font-size: 24px;"></p>
         <p id="victory-time" style="font-size: 20px;"></p>
-        <button onclick="location.reload()">חזור לבסיס (התחל מחדש)</button>
+        <button onclick="resetToLobby()">חזור לבסיס (תפריט ראשי)</button>
     </div>
 
     <div id="top-bar" class="hidden">
@@ -158,16 +165,18 @@
             <p style="font-size:12px; text-align:center;">גרור את המטרות אל הרדאר:</p>
             <div id="toolbar-items"></div>
             <button id="finish-creation-btn" style="margin-top:auto;" onclick="finishCreation()" disabled>אשר פריסה</button>
+            <button style="margin-top:10px; background:transparent; border-color:#e74c3c; color:#e74c3c;" onclick="resetToLobby()">ביטול וחזרה</button>
         </div>
 
         <div id="canvas-wrapper">
             <canvas id="gridCanvas"></canvas>
-            <div id="placed-rects-layer"></div>
+            <div id="placed-shapes-layer"></div>
         </div>
 
         <div id="calc-modal">
             <h3>זיהוי מטרה</h3>
-            <p>חשב את נתוני המלבן לפי הקודקודים המוארים על המסך</p>
+            <canvas id="modal-canvas" width="280" height="180" style="background:#000; border:1px solid #00ff80; margin-bottom:15px; border-radius:4px;"></canvas>
+            
             <div style="display:flex; gap:10px; justify-content:center; margin-bottom:15px;">
                 <input type="number" id="input-perimeter" placeholder="היקף P" style="width:100px;">
                 <input type="number" id="input-area" placeholder="שטח S" style="width:100px;">
@@ -177,9 +186,12 @@
         </div>
 
         <div id="code-output-area" class="hidden">
-            <span>קוד רשת מוצפן:</span>
-            <div id="share-code-display"></div>
-            <button onclick="copyShareCode()">העתק קוד</button>
+            <div class="code-row">
+                <span>קוד רשת מוצפן:</span>
+                <div id="share-code-display"></div>
+                <button onclick="copyShareCode()">העתק קוד</button>
+            </div>
+            <button style="background:transparent; border-color:#e74c3c; color:#e74c3c; padding: 5px 15px;" onclick="resetToLobby()">חזור לתפריט הראשי</button>
         </div>
     </div>
 
@@ -191,8 +203,9 @@
 
         let playerName = "";
         let creatorName = "";
-        let currentGameMode = null;
-        let placedRects = [];
+        let currentGameMode = null; 
+        let currentShapeType = 'rect'; 
+        let placedShapes = [];
         let activeSubmarinesCount = 0;
         let foundSubmarinesCount = 0;
         
@@ -201,7 +214,7 @@
 
         const canvas = document.getElementById('gridCanvas');
         const ctx = canvas.getContext('2d');
-        const rectsLayer = document.getElementById('placed-rects-layer');
+        const shapesLayer = document.getElementById('placed-shapes-layer');
         const calcModal = document.getElementById('calc-modal');
 
         window.addEventListener('resize', initGameLayout);
@@ -223,6 +236,11 @@
                     osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.3);
                     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
                     osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+                } else if (type === 'pop') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(100, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                    gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.1);
                 }
             } catch(e) {}
         }
@@ -235,6 +253,18 @@
             document.getElementById('lobby-screen').classList.remove('hidden');
         }
 
+        function resetToLobby() {
+            stopTimer();
+            placedShapes = [];
+            shapesLayer.innerHTML = '';
+            document.getElementById('main-container').classList.add('hidden');
+            document.getElementById('top-bar').classList.add('hidden');
+            document.getElementById('code-output-area').classList.add('hidden');
+            document.getElementById('victory-screen').classList.add('hidden');
+            document.getElementById('lobby-screen').classList.remove('hidden');
+            closeCalcModal();
+        }
+
         function initGameLayout() {
             const wrapper = document.getElementById('canvas-wrapper');
             const size = Math.min(wrapper.clientWidth, wrapper.clientHeight);
@@ -242,7 +272,7 @@
             canvas.height = size;
             cellSize = size / GRID_SIZE;
             drawGrid();
-            renderPlacedRects();
+            renderPlacedShapes();
         }
 
         function drawGrid() {
@@ -276,20 +306,43 @@
         function generateRandomTools() {
             const container = document.getElementById('toolbar-items');
             container.innerHTML = '';
+            
+            // שלשות פיתגוריות נוחות
+            const triangleSizes = [{w:6,h:8}, {w:8,h:6}, {w:5,h:12}, {w:12,h:5}, {w:9,h:12}, {w:12,h:9}];
+
             for(let i=0; i<6; i++) {
-                let w = Math.floor(Math.random() * 9) + 2;
-                let h = Math.floor(Math.random() * 9) + 2;
+                let w, h;
+                let ori = 0;
+                if (currentShapeType === 'triangle') {
+                    const sz = triangleSizes[Math.floor(Math.random() * triangleSizes.length)];
+                    w = sz.w; h = sz.h;
+                    ori = Math.floor(Math.random() * 4); // 0 עד 3
+                } else {
+                    w = Math.floor(Math.random() * 9) + 2;
+                    h = Math.floor(Math.random() * 9) + 2;
+                }
+                
                 let isSub = i < 2; 
                 
                 let div = document.createElement('div');
                 div.id = 'tool-' + i; 
-                div.className = 'tool-rect' + (isSub ? ' submarine' : '');
-                div.dataset.w = w; div.dataset.h = h;
+                div.className = 'tool-shape' + (isSub ? ' submarine' : '') + (currentShapeType === 'triangle' ? ' triangle' : '');
+                div.dataset.w = w; div.dataset.h = h; div.dataset.ori = ori;
                 
                 let scale = 10;
                 div.style.width = (w * scale) + 'px';
                 div.style.height = (h * scale) + 'px';
-                div.innerText = `${w}x${h}`;
+                
+                if (currentShapeType === 'triangle') {
+                    let clipPath = '';
+                    if (ori === 0) clipPath = 'polygon(0 0, 100% 0, 0 100%)';
+                    else if (ori === 1) clipPath = 'polygon(0 0, 100% 0, 100% 100%)';
+                    else if (ori === 2) clipPath = 'polygon(100% 0, 100% 100%, 0 100%)';
+                    else if (ori === 3) clipPath = 'polygon(0 0, 100% 100%, 0 100%)';
+                    div.style.setProperty('--clip', clipPath);
+                } else {
+                    div.innerText = `${w}x${h}`;
+                }
                 
                 div.addEventListener('mousedown', startDragFromToolbar);
                 div.addEventListener('touchstart', startDragFromToolbar, {passive: false});
@@ -297,40 +350,40 @@
             }
         }
 
-        // פונקציה ליצירת לוח רנדומלי נגד המחשב ללא חפיפות
         function generateComputerBoard() {
-            let rects = [];
+            let shapes = [];
             let attempts = 0;
+            const triangleSizes = [{w:6,h:8}, {w:8,h:6}, {w:5,h:12}, {w:12,h:5}, {w:9,h:12}, {w:12,h:9}];
             
-            while (rects.length < 6 && attempts < 1000) {
+            while (shapes.length < 6 && attempts < 1000) {
                 attempts++;
-                let isSub = rects.length < 2; // 2 הראשונים הם צוללות
-                let w = Math.floor(Math.random() * 9) + 2;
-                let h = Math.floor(Math.random() * 9) + 2;
+                let isSub = shapes.length < 2;
+                let w, h, ori = 0;
+                if (currentShapeType === 'triangle') {
+                    const sz = triangleSizes[Math.floor(Math.random() * triangleSizes.length)];
+                    w = sz.w; h = sz.h;
+                    ori = Math.floor(Math.random() * 4);
+                } else {
+                    w = Math.floor(Math.random() * 9) + 2; h = Math.floor(Math.random() * 9) + 2;
+                }
                 
                 let x = Math.floor(Math.random() * (GRID_SIZE - w + 1)) + GRID_MIN;
                 let y = Math.floor(Math.random() * (GRID_SIZE - h + 1)) + GRID_MIN + h;
                 
-                // בדיקת חפיפה עם מלבנים קיימים
                 let overlap = false;
-                for (let r of rects) {
-                    // כדי שלא תהיה חפיפה: אחד צריך להיות לחלוטין משמאל, ימין, למעלה או למטה מהשני
-                    if (!(x + w <= r.x || x >= r.x + r.w || y - h >= r.y || y <= r.y - r.h)) {
-                        overlap = true;
-                        break;
-                    }
+                for (let r of shapes) {
+                    if (!(x + w <= r.x || x >= r.x + r.w || y - h >= r.y || y <= r.y - r.h)) { overlap = true; break; }
                 }
                 
-                if (!overlap) {
-                    rects.push({ id: Date.now() + Math.random(), x, y, w, h, isSub });
-                }
+                if (!overlap) { shapes.push({ id: Date.now() + Math.random(), x, y, w, h, ori, isSub, type: currentShapeType }); }
             }
-            return rects;
+            return shapes;
         }
 
-        function startComputerMode() {
+        function startComputerMode(type) {
+            currentShapeType = type;
             creatorName = "המחשב";
-            placedRects = generateComputerBoard();
+            placedShapes = generateComputerBoard();
             
             currentGameMode = 'play';
             foundSubmarinesCount = 0;
@@ -346,37 +399,42 @@
             setTimeout(() => { initGameLayout(); startTimer(); }, 50);
         }
 
-        function startCreationMode() {
+        function startCreationMode(type) {
+            currentShapeType = type;
             currentGameMode = 'create';
-            placedRects = [];
+            placedShapes = [];
             generateRandomTools();
             
             document.getElementById('lobby-screen').classList.add('hidden');
             document.getElementById('main-container').classList.remove('hidden');
             document.getElementById('top-bar').classList.remove('hidden');
             document.getElementById('toolbar').classList.remove('hidden');
+            document.getElementById('code-output-area').classList.add('hidden');
+            
             document.getElementById('game-status-text').innerText = "מצב יצירה: מקם את המטרות על הרדאר";
             document.getElementById('timer-display').innerText = "00:00";
             
             setTimeout(initGameLayout, 50);
         }
 
-        let dragRectInfo = null;
+        let dragShapeInfo = null;
 
         function startDragFromToolbar(e) {
             e.preventDefault();
             const el = e.currentTarget;
             const touch = e.touches ? e.touches[0] : e;
             
-            dragRectInfo = {
+            dragShapeInfo = {
                 w: parseInt(el.dataset.w), h: parseInt(el.dataset.h),
+                ori: parseInt(el.dataset.ori || 0),
                 isSub: el.classList.contains('submarine'), isNew: true,
-                sourceId: el.id, 
+                sourceId: el.id, type: currentShapeType,
                 offsetX: (parseInt(el.style.width) / 2), offsetY: (parseInt(el.style.height) / 2)
             };
 
             const ghost = el.cloneNode(true);
             ghost.style.position = 'absolute'; ghost.style.opacity = '0.7'; ghost.style.pointerEvents = 'none'; ghost.id = 'drag-ghost';
+            if(currentShapeType === 'triangle') ghost.innerText = ''; 
             document.body.appendChild(ghost);
             moveDragGhost(touch.clientX, touch.clientY);
 
@@ -385,7 +443,7 @@
         }
 
         function dragMove(e) { e.preventDefault(); const touch = e.touches ? e.touches[0] : e; moveDragGhost(touch.clientX, touch.clientY); }
-        function moveDragGhost(x, y) { const ghost = document.getElementById('drag-ghost'); if (ghost) { ghost.style.left = (x - dragRectInfo.offsetX) + 'px'; ghost.style.top = (y - dragRectInfo.offsetY) + 'px'; } }
+        function moveDragGhost(x, y) { const ghost = document.getElementById('drag-ghost'); if (ghost) { ghost.style.left = (x - dragShapeInfo.offsetX) + 'px'; ghost.style.top = (y - dragShapeInfo.offsetY) + 'px'; } }
 
         function dragEnd(e) {
             const touch = e.changedTouches ? e.changedTouches[0] : e;
@@ -396,98 +454,115 @@
             if (touch.clientX >= rectCanvas.left && touch.clientX <= rectCanvas.right && touch.clientY >= rectCanvas.top && touch.clientY <= rectCanvas.bottom) {
                 const mouseX = touch.clientX - rectCanvas.left;
                 const mouseY = touch.clientY - rectCanvas.top;
-                let scaleDiffX = (dragRectInfo.w * cellSize) / 2;
-                let scaleDiffY = (dragRectInfo.h * cellSize) / 2;
+                let scaleDiffX = (dragShapeInfo.w * cellSize) / 2;
+                let scaleDiffY = (dragShapeInfo.h * cellSize) / 2;
                 
                 const gridPos = pxToGrid(mouseX - scaleDiffX, mouseY - scaleDiffY);
-                addOrUpdatePlacedRect(gridPos.x, gridPos.y, dragRectInfo);
+                addOrUpdatePlacedShape(gridPos.x, gridPos.y, dragShapeInfo);
                 
-                if (dragRectInfo.isNew) {
-                    const sourceEl = document.getElementById(dragRectInfo.sourceId);
+                if (dragShapeInfo.isNew) {
+                    const sourceEl = document.getElementById(dragShapeInfo.sourceId);
                     if (sourceEl) sourceEl.style.display = 'none';
                 }
-            } else if (!dragRectInfo.isNew) {
-                const sourceEl = document.getElementById(dragRectInfo.sourceId);
+            } else if (!dragShapeInfo.isNew) {
+                const sourceEl = document.getElementById(dragShapeInfo.sourceId);
                 if (sourceEl) sourceEl.style.display = 'flex';
-                placedRects = placedRects.filter(r => r.id !== dragRectInfo.id);
-                renderPlacedRects();
+                placedShapes = placedShapes.filter(r => r.id !== dragShapeInfo.id);
+                renderPlacedShapes();
             }
 
             if (ghost) ghost.remove();
-            dragRectInfo = null;
+            dragShapeInfo = null;
             document.removeEventListener('mousemove', dragMove); document.removeEventListener('touchmove', dragMove);
             document.removeEventListener('mouseup', dragEnd); document.removeEventListener('touchend', dragEnd);
         }
 
-        function addOrUpdatePlacedRect(gridX, gridY, info) {
+        function addOrUpdatePlacedShape(gridX, gridY, info) {
             let x = Math.max(GRID_MIN, Math.min(GRID_MAX - info.w, gridX));
             let y = Math.max(GRID_MIN + info.h, Math.min(GRID_MAX, gridY));
             if (info.isNew) { 
-                placedRects.push({ id: Date.now() + Math.random(), x, y, w: info.w, h: info.h, isSub: info.isSub, sourceId: info.sourceId }); 
+                placedShapes.push({ id: Date.now() + Math.random(), x, y, w: info.w, h: info.h, ori: info.ori, isSub: info.isSub, type: info.type, sourceId: info.sourceId }); 
             } else { 
-                const rect = placedRects.find(r => r.id === info.id); 
-                if (rect) { rect.x = x; rect.y = y; } 
+                const shape = placedShapes.find(r => r.id === info.id); 
+                if (shape) { shape.x = x; shape.y = y; } 
             }
-            renderPlacedRects();
+            renderPlacedShapes();
         }
 
-        function renderPlacedRects() {
-            rectsLayer.innerHTML = ''; 
+        function getShapeVertices(shape) {
+            if (shape.type === 'rect') {
+                return [ { x: shape.x, y: shape.y }, { x: shape.x + shape.w, y: shape.y }, { x: shape.x + shape.w, y: shape.y - shape.h }, { x: shape.x, y: shape.y - shape.h } ];
+            } else {
+                if(shape.ori===0) return [{x: shape.x, y: shape.y}, {x: shape.x+shape.w, y: shape.y}, {x: shape.x, y: shape.y-shape.h}];
+                if(shape.ori===1) return [{x: shape.x, y: shape.y}, {x: shape.x+shape.w, y: shape.y}, {x: shape.x+shape.w, y: shape.y-shape.h}];
+                if(shape.ori===2) return [{x: shape.x+shape.w, y: shape.y}, {x: shape.x+shape.w, y: shape.y-shape.h}, {x: shape.x, y: shape.y-shape.h}];
+                if(shape.ori===3) return [{x: shape.x, y: shape.y}, {x: shape.x+shape.w, y: shape.y-shape.h}, {x: shape.x, y: shape.y-shape.h}];
+            }
+        }
+
+        function renderPlacedShapes() {
+            shapesLayer.innerHTML = ''; 
             
-            placedRects.forEach(rect => {
-                const pos = gridToPx(rect.x, rect.y);
+            placedShapes.forEach(shape => {
+                const pos = gridToPx(shape.x, shape.y);
                 const el = document.createElement('div');
-                el.className = 'placed-rect ' + (rect.isSub ? 'submarine' : '');
+                el.className = 'placed-shape ' + (shape.isSub ? 'submarine' : '') + (shape.type === 'triangle' ? ' triangle' : '');
                 if (currentGameMode === 'play') el.className += ' game-mode';
                 
-                el.style.width = (rect.w * cellSize) + 'px';
-                el.style.height = (rect.h * cellSize) + 'px';
+                el.style.width = (shape.w * cellSize) + 'px';
+                el.style.height = (shape.h * cellSize) + 'px';
                 el.style.left = pos.x + 'px';
                 el.style.top = pos.y + 'px';
 
+                if (shape.type === 'triangle') {
+                    let clipPath = '';
+                    if (shape.ori === 0) clipPath = 'polygon(0 0, 100% 0, 0 100%)';
+                    else if (shape.ori === 1) clipPath = 'polygon(0 0, 100% 0, 100% 100%)';
+                    else if (shape.ori === 2) clipPath = 'polygon(100% 0, 100% 100%, 0 100%)';
+                    else if (shape.ori === 3) clipPath = 'polygon(0 0, 100% 100%, 0 100%)';
+                    el.style.setProperty('--clip', clipPath);
+                }
+
                 if (currentGameMode === 'create') {
-                    el.addEventListener('mousedown', (e) => startDragExisting(e, rect));
-                    el.addEventListener('touchstart', (e) => startDragExisting(e, rect), {passive: false});
+                    el.addEventListener('mousedown', (e) => startDragExisting(e, shape));
+                    el.addEventListener('touchstart', (e) => startDragExisting(e, shape), {passive: false});
                     
-                    const coords = [ { x: rect.x, y: rect.y }, { x: rect.x + rect.w, y: rect.y }, { x: rect.x + rect.w, y: rect.y - rect.h }, { x: rect.x, y: rect.y - rect.h } ];
+                    const coords = getShapeVertices(shape);
                     coords.forEach(c => {
                         const px = gridToPx(c.x, c.y);
                         const label = document.createElement('div');
                         label.className = 'vertex-label'; label.innerText = `(${c.x},${c.y})`;
                         label.style.left = px.x + 'px'; label.style.top = px.y + 'px';
-                        rectsLayer.appendChild(label);
+                        shapesLayer.appendChild(label);
                     });
 
                 } else if (currentGameMode === 'play') {
-                    el.onclick = () => openCalcModal(rect, el);
+                    el.onclick = () => openCalcModal(shape, el);
                 }
-                rectsLayer.appendChild(el);
+                shapesLayer.appendChild(el);
             });
 
             if (currentGameMode === 'create') {
                 const btn = document.getElementById('finish-creation-btn');
-                const subsPlaced = placedRects.filter(r => r.isSub).length;
-                const decoysPlaced = placedRects.filter(r => !r.isSub).length;
+                const subsPlaced = placedShapes.filter(r => r.isSub).length;
+                const decoysPlaced = placedShapes.filter(r => !r.isSub).length;
                 
                 if (subsPlaced < 2) {
-                    btn.disabled = true;
-                    btn.innerText = `הנח עוד ${2 - subsPlaced} צוללות`;
+                    btn.disabled = true; btn.innerText = `הנח עוד ${2 - subsPlaced} צוללות`;
                 } else if (decoysPlaced < 4) {
-                    btn.disabled = true;
-                    btn.innerText = `הנח עוד ${4 - decoysPlaced} הטעיות`;
+                    btn.disabled = true; btn.innerText = `הנח עוד ${4 - decoysPlaced} הטעיות`;
                 } else {
-                    btn.disabled = false;
-                    btn.innerText = "אשר פריסה";
+                    btn.disabled = false; btn.innerText = "אשר פריסה";
                 }
             }
         }
 
-        function startDragExisting(e, rect) {
+        function startDragExisting(e, shape) {
             e.preventDefault(); e.stopPropagation();
             const touch = e.touches ? e.touches[0] : e;
-            const rectEl = e.currentTarget; const rectBound = rectEl.getBoundingClientRect();
-            dragRectInfo = { ...rect, isNew: false, offsetX: touch.clientX - rectBound.left, offsetY: touch.clientY - rectBound.top };
-            const ghost = rectEl.cloneNode(true); ghost.id = 'drag-ghost'; ghost.style.position = 'fixed'; ghost.style.opacity = '0.5'; ghost.style.pointerEvents = 'none'; ghost.style.zIndex = '1000';
+            const el = e.currentTarget; const rectBound = el.getBoundingClientRect();
+            dragShapeInfo = { ...shape, isNew: false, offsetX: touch.clientX - rectBound.left, offsetY: touch.clientY - rectBound.top };
+            const ghost = el.cloneNode(true); ghost.id = 'drag-ghost'; ghost.style.position = 'fixed'; ghost.style.opacity = '0.5'; ghost.style.pointerEvents = 'none'; ghost.style.zIndex = '1000';
             document.body.appendChild(ghost);
             moveDragGhost(touch.clientX, touch.clientY);
             document.addEventListener('mousemove', dragMove); document.addEventListener('touchmove', dragMove, {passive: false});
@@ -498,8 +573,19 @@
         function decrypt(cipher) { return cipher.split('').map(char => String.fromCharCode(char.charCodeAt(0) - 1)).join(''); }
 
         function finishCreation() {
-            if (placedRects.length < 6) return;
-            const data = { n: playerName, r: placedRects };
+            if (placedShapes.length < 6) return;
+            
+            const exportData = placedShapes.map(s => {
+                if (s.type === 'triangle') {
+                    // המרה למערך 3 נקודות חכם שמגדיר את הצורה והכיוון במדויק מבלי להוסיף שדות
+                    const pts = getShapeVertices(s).map(p => [p.x, p.y]);
+                    return { p: pts, isSub: s.isSub };
+                } else {
+                    return { x: s.x, y: s.y, w: s.w, h: s.h, isSub: s.isSub };
+                }
+            });
+
+            const data = { n: playerName, r: exportData };
             const code = encrypt(JSON.stringify(data));
             document.getElementById('toolbar').classList.add('hidden');
             document.getElementById('code-output-area').classList.remove('hidden');
@@ -522,7 +608,7 @@
         }
         function stopTimer() { clearInterval(timerInterval); }
 
-        let gameModalState = { rect: null, el: null };
+        let gameModalState = { shape: null, el: null };
 
         function startAreaMode() {
             const codeInput = document.getElementById('join-code-input').value.trim();
@@ -530,70 +616,187 @@
             
             try {
                 const data = JSON.parse(decrypt(codeInput));
-                creatorName = data.n; placedRects = data.r;
-                if (!Array.isArray(placedRects) || placedRects.length === 0) throw "Error";
+                creatorName = data.n; 
+                
+                placedShapes = data.r.map(item => {
+                    if (item.p && item.p.length === 3) {
+                        let xs = item.p.map(pt => pt[0]);
+                        let ys = item.p.map(pt => pt[1]);
+                        let minX = Math.min(...xs), maxX = Math.max(...xs);
+                        let minY = Math.min(...ys), maxY = Math.max(...ys);
+                        let x = minX, w = maxX - minX;
+                        let y = maxY, h = maxY - minY; 
+
+                        // פיענוח חכם של הכיוון (אוריאנטציה) לפי הקודקוד ש"חסר" מהמלבן החוסם
+                        let hasTL = item.p.some(pt => pt[0]===minX && pt[1]===maxY);
+                        let hasTR = item.p.some(pt => pt[0]===maxX && pt[1]===maxY);
+                        let hasBR = item.p.some(pt => pt[0]===maxX && pt[1]===minY);
+                        let hasBL = item.p.some(pt => pt[0]===minX && pt[1]===minY);
+
+                        let ori = 0;
+                        if (!hasBR) ori = 0;
+                        else if (!hasBL) ori = 1;
+                        else if (!hasTL) ori = 2;
+                        else if (!hasTR) ori = 3;
+
+                        return { id: Math.random(), x, y, w, h, ori, isSub: item.isSub, type: 'triangle' };
+                    } else {
+                        return { id: Math.random(), x: item.x, y: item.y, w: item.w, h: item.h, isSub: item.isSub, type: 'rect' };
+                    }
+                });
+                if (!Array.isArray(placedShapes) || placedShapes.length === 0) throw "Error";
+                currentShapeType = placedShapes[0].type; 
             } catch (e) { alert("קוד פגום, נסה שנית."); return; }
 
             currentGameMode = 'play';
             foundSubmarinesCount = 0;
-            activeSubmarinesCount = placedRects.filter(r => r.isSub).length;
+            activeSubmarinesCount = placedShapes.filter(r => r.isSub).length;
 
             document.getElementById('lobby-screen').classList.add('hidden');
             document.getElementById('main-container').classList.remove('hidden');
             document.getElementById('top-bar').classList.remove('hidden');
             document.getElementById('toolbar').classList.add('hidden');
+            document.getElementById('code-output-area').classList.add('hidden');
             
             document.getElementById('game-status-text').innerText = `${playerName} נגד ${creatorName}`;
             
             setTimeout(() => { initGameLayout(); startTimer(); }, 50);
         }
 
-        function clearVertexLabels() { document.querySelectorAll('.vertex-label').forEach(el => el.remove()); }
-
-        function openCalcModal(rect, el) {
+        function openCalcModal(shape, el) {
             if (el.classList.contains('revealed-sub') || el.classList.contains('revealed-fail')) return; 
-            gameModalState = { rect, el };
-            clearVertexLabels();
-            const coords = [ { x: rect.x, y: rect.y }, { x: rect.x + rect.w, y: rect.y }, { x: rect.x + rect.w, y: rect.y - rect.h }, { x: rect.x, y: rect.y - rect.h } ];
+            gameModalState = { shape, el };
             
-            coords.forEach(c => {
-                const px = gridToPx(c.x, c.y);
-                const label = document.createElement('div');
-                label.className = 'vertex-label'; label.innerText = `(${c.x},${c.y})`;
-                label.style.left = px.x + 'px'; label.style.top = px.y + 'px';
-                document.getElementById('canvas-wrapper').appendChild(label);
-            });
+            drawMiniCanvas(shape);
+            
+            // במשולש, מסתירים את ההיקף
+            if (shape.type === 'triangle') {
+                document.getElementById('input-perimeter').style.display = 'none';
+                document.getElementById('input-perimeter').value = '0'; // ערך סרק שלא יפריע
+            } else {
+                document.getElementById('input-perimeter').style.display = 'inline-block';
+                document.getElementById('input-perimeter').value = ''; 
+            }
+            
+            document.getElementById('input-area').value = '';
             
             calcModal.style.display = 'block';
-            document.getElementById('input-perimeter').value = ''; document.getElementById('input-area').value = '';
-            document.getElementById('input-perimeter').focus();
+            if (shape.type !== 'triangle') document.getElementById('input-perimeter').focus();
+            else document.getElementById('input-area').focus();
         }
 
-        function closeCalcModal() { calcModal.style.display = 'none'; clearVertexLabels(); }
+        function drawMiniCanvas(shape) {
+            const mCanvas = document.getElementById('modal-canvas');
+            const mCtx = mCanvas.getContext('2d');
+            mCtx.clearRect(0, 0, mCanvas.width, mCanvas.height);
+            
+            const pad = 60; // שוליים גדולים כדי לרווח את הטקסט
+            const drawW = mCanvas.width - pad * 2;
+            const drawH = mCanvas.height - pad * 2;
+            
+            const scale = Math.min(drawW / shape.w, drawH / shape.h);
+            const sw = shape.w * scale;
+            const sh = shape.h * scale;
+            
+            const cx = (mCanvas.width - sw) / 2;
+            const cy = (mCanvas.height - sh) / 2;
+            
+            // ציור הצורה עצמה
+            mCtx.fillStyle = 'rgba(100,100,100,0.5)';
+            mCtx.strokeStyle = '#00ff80';
+            mCtx.lineWidth = 2;
+            
+            mCtx.beginPath();
+            if (shape.type === 'rect') {
+                mCtx.moveTo(cx, cy); mCtx.lineTo(cx + sw, cy); mCtx.lineTo(cx + sw, cy + sh); mCtx.lineTo(cx, cy + sh);
+            } else {
+                if (shape.ori === 0) { mCtx.moveTo(cx, cy); mCtx.lineTo(cx + sw, cy); mCtx.lineTo(cx, cy + sh); }
+                else if (shape.ori === 1) { mCtx.moveTo(cx, cy); mCtx.lineTo(cx + sw, cy); mCtx.lineTo(cx + sw, cy + sh); }
+                else if (shape.ori === 2) { mCtx.moveTo(cx + sw, cy); mCtx.lineTo(cx + sw, cy + sh); mCtx.lineTo(cx, cy + sh); }
+                else if (shape.ori === 3) { mCtx.moveTo(cx, cy); mCtx.lineTo(cx + sw, cy + sh); mCtx.lineTo(cx, cy + sh); }
+            }
+            mCtx.closePath();
+            mCtx.fill();
+            mCtx.stroke();
+            
+            // כתיבת הקואורדינטות עם ריווח חכם החוצה
+            mCtx.fillStyle = '#fff';
+            mCtx.font = 'bold 13px Courier New';
+            mCtx.textAlign = 'center';
+            mCtx.textBaseline = 'middle';
+            
+            const pts = getShapeVertices(shape);
+            pts.forEach(p => {
+                let px = (p.x === shape.x) ? cx : cx + sw;
+                let py = (p.y === shape.y) ? cy : cy + sh;
+                
+                // דחיפת הטקסט החוצה בהתאם למיקום הקודקוד
+                let offsetX = (p.x === shape.x) ? -25 : 25; 
+                let offsetY = (p.y === shape.y) ? -15 : 15; 
+                
+                mCtx.fillText(`(${p.x},${p.y})`, px + offsetX, py + offsetY);
+            });
+        }
+
+        function closeCalcModal() { calcModal.style.display = 'none'; }
 
         function checkGameAnswer() {
-            const rect = gameModalState.rect;
+            const shape = gameModalState.shape;
             const el = gameModalState.el;
             
-            const trueP = 2 * (rect.w + rect.h);
-            const trueS = rect.w * rect.h;
+            let trueP, trueS;
+            if (shape.type === 'triangle') {
+                trueS = (shape.w * shape.h) / 2;
+                trueP = 0; // לא בודקים
+            } else {
+                trueS = shape.w * shape.h;
+                trueP = 2 * (shape.w + shape.h);
+            }
             
             const userP = parseInt(document.getElementById('input-perimeter').value);
             const userS = parseInt(document.getElementById('input-area').value);
 
-            if ((userP === trueP && userS === trueS) || (userP === 666 && userS === 666)) {
+            let isCorrect = false;
+            if (userS === 666 && (shape.type === 'triangle' || userP === 666)) {
+                isCorrect = true; // צ'יט
+            } else if (shape.type === 'triangle') {
+                isCorrect = (userS === trueS);
+            } else {
+                isCorrect = (userP === trueP && userS === trueS);
+            }
+
+            if (isCorrect) {
                 closeCalcModal();
-                fireMissile(rect, el); 
+                fireMissileBarrage(shape, el); 
             } else {
                 playSound('fail');
                 alert("חישוב שגוי, הקברניט ממתין לנתונים מדויקים!");
             }
         }
 
-        function fireMissile(rect, el) {
+        function fireMissileBarrage(shape, el) {
+            const numMissiles = Math.floor(Math.random() * 16) + 5; // הגרלת 5 עד 20 טילים
+            let hitCount = 0;
+            
+            for (let i = 0; i < numMissiles; i++) {
+                // מרווחים את השיגורים על פני כחצי שנייה
+                setTimeout(() => {
+                    launchSingleMissile(shape, el, () => {
+                        hitCount++;
+                        if (hitCount === numMissiles) {
+                            revealTarget(shape, el);
+                        }
+                    });
+                }, Math.random() * 500);
+            }
+        }
+
+        function launchSingleMissile(shape, el, onHitCallback) {
             const rectBound = el.getBoundingClientRect();
-            const targetX = rectBound.left + rectBound.width / 2;
-            const targetY = rectBound.top + rectBound.height / 2;
+            
+            // חישוב המרכז של הצורה עם סטייה קלה למראה של פיזור מטח
+            const targetX = rectBound.left + rectBound.width / 2 + (Math.random() * 30 - 15);
+            const targetY = rectBound.top + rectBound.height / 2 + (Math.random() * 30 - 15);
 
             let startX, startY;
             const edge = Math.floor(Math.random() * 4);
@@ -621,8 +824,9 @@
             setTimeout(() => {
                 missile.remove();
                 createExplosion(targetX, targetY);
-                revealTarget(rect, el);
-            }, 850); 
+                playSound('pop'); // צליל פיצוץ קטן לכל טיל
+                onHitCallback();
+            }, 450); // זמן תעופה מהיר יותר
         }
 
         function createExplosion(x, y) {
@@ -634,15 +838,15 @@
             document.body.appendChild(explosion);
 
             setTimeout(() => { 
-                explosion.style.transform = 'translate(-50%, -50%) scale(2)'; 
+                explosion.style.transform = 'translate(-50%, -50%) scale(1.5)'; 
                 explosion.style.opacity = '0'; 
             }, 50);
             
-            setTimeout(() => explosion.remove(), 350);
+            setTimeout(() => explosion.remove(), 250);
         }
 
-        function revealTarget(rect, el) {
-            if (rect.isSub) {
+        function revealTarget(shape, el) {
+            if (shape.isSub) {
                 playSound('success');
                 el.classList.add('revealed-sub'); el.innerHTML = '🚢';
                 foundSubmarinesCount++;
