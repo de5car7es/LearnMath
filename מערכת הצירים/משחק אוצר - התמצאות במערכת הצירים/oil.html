@@ -400,7 +400,8 @@
             // שומרים עותק של המלבן לפני שסוגרים את המודאל (שמאפס את pendingRect)
             const rectToAnimate = { ...pendingRect };
             
-            if ((S === rectToAnimate.w * rectToAnimate.h && P === 2*(rectToAnimate.w + rectToAnimate.h)) || (S === 666 && P === 666)) {
+            // בדיקת תשובה נכונה או קוד צ'יט (666 בשטח או בהיקף)
+            if ((S === rectToAnimate.w * rectToAnimate.h && P === 2*(rectToAnimate.w + rectToAnimate.h)) || S === 666 || P === 666) {
                 sfx.success(); 
                 closeCalcModal(); 
                 startTractorAnimation(rectToAnimate);
