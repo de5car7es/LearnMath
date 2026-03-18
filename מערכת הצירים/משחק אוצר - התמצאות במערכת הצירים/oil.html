@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>חיפוש נפט במדבר</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            touch-action: none;
+            overflow: hidden;
+        }
+        
+        .desert-bg {
+            background-color: #f4a460;
+            background-image: radial-gradient(#d28c4e 10%, transparent 11%), radial-gradient(#d28c4e 10%, transparent 11%);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+        }
+
+        @keyframes floatUpAndFade {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-50px) scale(1.5); }
+        }
+        .floating-text {
+            position: absolute;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 1.5rem;
+            text-shadow: 2px 2px 4px #000;
+            pointer-events: none;
+            animation: floatUpAndFade 2s ease-out forwards;
+            z-index: 50;
+        }
+
+        .flying-barrel {
+            position: fixed;
+            font-size: 24px;
+            z-index: 100;
+            transition: all 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+        }
+
+        /* מראה המקדח במחסן הכלים */
+        #drill-source {
+            transition: transform 0.2s;
+            cursor: grab;
+        }
+        #drill-source:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body class="bg-orange-100 h-screen w-screen flex flex-col font-sans text-gray-800">
+
+    <!-- Chosen Palette: Desert Gold & Oil Black -->
+    <!-- Application Structure Plan: Full SPA. Header for stats, Sidebar for the next drill shape, Main for the desert canvas. -->
+
+    <header class="bg-orange-900 text-white p-4 shadow-md flex justify-between items-center z-10">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold tracking-wide">חיפוש נפט במדבר 🚜</h1>
+        </div>
+        <div class="flex space-x-4 flex-row-reverse">
+            <div class="flex items-center space-x-2 flex-row-reverse text-xl bg-black px-4 py-2 rounded-lg border border-gray-700">
+                <span>⏳</span>
+                <span id="timer-display">05:00</span>
+            </div>
+            <div class="flex items-center space-x-2 flex-row-reverse text-xl font-bold bg-yellow-600 px-4 py-2 rounded-lg border border-yellow-500 text-black shadow-inner">
+                <span>🛢️</span>
+                <span id="barrels-display">0</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-grow overflow-hidden">
+        <!-- סרגל צד - מחסן המקדחים -->
+        <aside class="w-48 bg-orange-800 p-4 border-l border-orange-950 flex flex-col items-center shadow-xl">
+            <h2 class="text-white font-bold mb-4 text-center">המקדח הבא</h2>
+            <div id="drill-container" class="w-32 h-32 bg-orange-900 rounded-lg flex items-center justify-center border-2 border-dashed border-orange-400 relative">
+                <div id="drill-source" class="bg-green-500 border-2 border-green-700 flex items-center justify-center font-bold text-white shadow-lg">
+                    <span id="drill-label"></span>
+                </div>
+            </div>
+            <p class="text-orange-200 text-xs mt-4 text-center">גרור את המלבן אל המפה כדי להתחיל בקידוח</p>
+            <div class="mt-auto p-2 bg-orange-950 rounded w-full text-center">
+                <span class="text-white text-sm">שטח פנוי: </span>
+                <span id="max-area-display" class="font-bold text-yellow-400">30</span>
+            </div>
+        </aside>
+
+        <!-- אזור המפה -->
+        <main class="flex-grow relative flex justify-center items-center overflow-hidden bg-orange-200">
+            <div id="canvas-container" class="relative shadow-2xl rounded-lg overflow-hidden border-4 border-orange-900 desert-bg w-full h-full flex justify-center items-center">
+                <canvas id="game-canvas" class="block touch-none"></canvas>
+                <div id="floating-text-container" class="absolute top-0 left-0 w-full h-full pointer-events-none"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="start-modal" class="fixed inset-0 modal-overlay flex justify-center items-center z-50">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center border-4 border-orange-600">
+            <h2 class="text-3xl font-bold text-orange-800 mb-4">צא לדרך, קברניט! 🚜</h2>
+            <p class="text-lg text-gray-700 mb-6 text-right">
+                1. <b>גרור</b> את המלבן הירוק מהצד אל המדבר.<br>
+                2. המלבן יהפוך ל<b>אדום</b> אם הוא חופף או חורג מהגבולות.<br>
+                3. שחרר במיקום הרצוי וחשב את הנתונים כדי לקדוח!<br>
+                4. יש לך <b>5 דקות</b> לאסוף נפט.
+            </p>
+            <button id="btn-start" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-xl transition duration-200 text-xl shadow-lg">התחל משחק</button>
+        </div>
+    </div>
+
+    <div id="calc-modal" class="fixed inset-0 modal-overlay justify-center items-center z-50 hidden flex">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-lg w-full text-center border-4 border-blue-600 flex flex-col items-center">
+            <h2 class="text-2xl font-bold text-blue-800 mb-2">זיהוי מטרת קידוח</h2>
+            <div class="bg-blue-50 border-2 border-blue-200 rounded-lg mb-6 relative w-full flex justify-center items-center" style="height: 250px;">
+                <canvas id="mini-canvas" class="block" width="400" height="250"></canvas>
+            </div>
+            <div class="flex space-x-4 flex-row-reverse w-full justify-center mb-6">
+                <div class="flex flex-col ml-4"><label class="font-bold text-gray-700 mb-1">שטח (S)</label><input type="number" id="input-area" class="w-24 text-center text-xl p-2 border-2 border-gray-300 rounded" placeholder="?"></div>
+                <div class="flex flex-col"><label class="font-bold text-gray-700 mb-1">היקף (P)</label><input type="number" id="input-perimeter" class="w-24 text-center text-xl p-2 border-2 border-gray-300 rounded" placeholder="?"></div>
+            </div>
+            <div class="flex space-x-4 flex-row-reverse w-full">
+                <button id="btn-submit-calc" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-xl shadow ml-2">אשר קידוח 🚜</button>
+                <button id="btn-cancel-calc" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 rounded-xl shadow">בטל</button>
+            </div>
+            <div id="calc-error-msg" class="text-red-600 font-bold mt-3 h-6 opacity-0">טעות בחישוב, נסו שוב!</div>
+        </div>
+    </div>
+
+    <div id="game-over-modal" class="fixed inset-0 modal-overlay justify-center items-center z-50 hidden flex">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center border-4 border-yellow-500">
+            <h2 class="text-4xl font-bold text-gray-800 mb-2">הזמן עבר! ⏰</h2>
+            <p id="victory-message" class="text-xl text-gray-700 mb-6">מצאת <span id="final-score" class="text-5xl font-black text-black">0</span> חביות!</p>
+            <button id="btn-restart" class="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-6 rounded-xl transition duration-200 text-xl shadow-lg">התחל חפירה חדשה</button>
+        </div>
+    </div>
+
+    <div id="toast-msg" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-xl z-50 opacity-0 pointer-events-none transition-opacity duration-300"></div>
+
+    <script>
+        /**
+         * State Management
+         */
+        const STATE = {
+            status: 'start', 
+            timeLeft: 5 * 60, 
+            barrels: 0,
+            currentMaxArea: 30,
+            gridMin: -20,
+            gridMax: 20,
+            gridSize: 40,
+            cellSize: 0,
+            tractorPos: { gridX: 0, gridY: 0 },
+            dugAreas: [],
+            nextRect: { w: 4, h: 5 }, // המלבן המוכן במחסן
+            dragData: null, // { isDragging: bool, x, y, isValid: bool }
+            timerId: null,
+            audioCtx: null
+        };
+
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        const drillSource = document.getElementById('drill-source');
+        const miniCanvas = document.getElementById('mini-canvas');
+        const miniCtx = miniCanvas.getContext('2d');
+        const timerDisplay = document.getElementById('timer-display');
+        const barrelsDisplay = document.getElementById('barrels-display');
+        const maxAreaDisplay = document.getElementById('max-area-display');
+        const drillLabel = document.getElementById('drill-label');
+        
+        const startModal = document.getElementById('start-modal');
+        const calcModal = document.getElementById('calc-modal');
+        const gameOverModal = document.getElementById('game-over-modal');
+
+        const sfx = {
+            play: (f, t, d, v=0.1) => {
+                if(!STATE.audioCtx) return;
+                const o = STATE.audioCtx.createOscillator();
+                const g = STATE.audioCtx.createGain();
+                o.type = t; o.frequency.setValueAtTime(f, STATE.audioCtx.currentTime);
+                g.gain.setValueAtTime(v, STATE.audioCtx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.01, STATE.audioCtx.currentTime + d);
+                o.connect(g); g.connect(STATE.audioCtx.destination);
+                o.start(); o.stop(STATE.audioCtx.currentTime + d);
+            },
+            success: () => { sfx.play(440, 'sine', 0.1); setTimeout(() => sfx.play(660, 'sine', 0.2), 100); },
+            error: () => sfx.play(200, 'sawtooth', 0.3, 0.2),
+            drill: () => {
+                if(!STATE.audioCtx) return;
+                const bufferSize = STATE.audioCtx.sampleRate * 0.8;
+                const buffer = STATE.audioCtx.createBuffer(1, bufferSize, STATE.audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                const noise = STATE.audioCtx.createBufferSource(); noise.buffer = buffer;
+                const gain = STATE.audioCtx.createGain(); gain.gain.setValueAtTime(0.2, STATE.audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, STATE.audioCtx.currentTime + 0.8);
+                noise.connect(gain); gain.connect(STATE.audioCtx.destination);
+                noise.start();
+            }
+        };
+
+        function init() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            document.getElementById('btn-start').addEventListener('click', startGame);
+            document.getElementById('btn-restart').addEventListener('click', resetGame);
+            document.getElementById('btn-cancel-calc').addEventListener('click', closeCalcModal);
+            document.getElementById('btn-submit-calc').addEventListener('click', verifyCalculation);
+
+            // גרירה ממחסן הכלים
+            drillSource.addEventListener('mousedown', startDrillDrag);
+            drillSource.addEventListener('touchstart', startDrillDrag, {passive: false});
+
+            window.addEventListener('mousemove', handleGlobalMouseMove);
+            window.addEventListener('touchmove', handleGlobalMouseMove, {passive: false});
+            window.addEventListener('mouseup', handleGlobalMouseUp);
+            window.addEventListener('touchend', handleGlobalMouseUp);
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            const size = Math.floor(Math.min(rect.width, rect.height));
+            canvas.width = size;
+            canvas.height = size;
+            STATE.cellSize = size / STATE.gridSize;
+        }
+
+        function generateNextRect() {
+            STATE.currentMaxArea = Math.floor(Math.random() * 31) + 10;
+            // מצא אורך ורוחב כך ששטח <= currentMaxArea
+            let w = Math.floor(Math.random() * 6) + 2; 
+            let h = Math.min(Math.floor(STATE.currentMaxArea / w), 10);
+            if (h < 2) { h = 2; w = Math.floor(STATE.currentMaxArea / h); }
+            
+            STATE.nextRect = { w, h };
+            
+            // עדכון המחסן
+            const scale = 10;
+            drillSource.style.width = (w * scale) + 'px';
+            drillSource.style.height = (h * scale) + 'px';
+            drillLabel.textContent = `${w}x${h}`;
+            maxAreaDisplay.textContent = STATE.currentMaxArea;
+        }
+
+        function startGame() {
+            if (!STATE.audioCtx) STATE.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if(STATE.audioCtx.state === 'suspended') STATE.audioCtx.resume();
+            generateNextRect();
+            startModal.classList.add('hidden');
+            STATE.status = 'playing';
+            STATE.timerId = setInterval(updateTimer, 1000);
+        }
+
+        function resetGame() {
+            clearInterval(STATE.timerId);
+            STATE.timeLeft = 5 * 60;
+            STATE.barrels = 0;
+            STATE.tractorPos = { gridX: 0, gridY: 0 };
+            STATE.dugAreas = [];
+            generateNextRect();
+            updateUI();
+            gameOverModal.classList.add('hidden');
+            STATE.status = 'playing';
+            STATE.timerId = setInterval(updateTimer, 1000);
+        }
+
+        function updateTimer() {
+            if (STATE.status !== 'playing' && STATE.status !== 'animating') return;
+            STATE.timeLeft--;
+            updateUI();
+            if (STATE.timeLeft <= 0) endGame();
+        }
+
+        function updateUI() {
+            const m = Math.floor(STATE.timeLeft / 60).toString().padStart(2, '0');
+            const s = (STATE.timeLeft % 60).toString().padStart(2, '0');
+            timerDisplay.textContent = `${m}:${s}`;
+            barrelsDisplay.textContent = STATE.barrels;
+        }
+
+        function endGame() {
+            clearInterval(STATE.timerId);
+            STATE.status = 'gameover';
+            document.getElementById('final-score').textContent = STATE.barrels;
+            gameOverModal.classList.remove('hidden');
+        }
+
+        /**
+         * Drag Logic
+         */
+        function startDrillDrag(e) {
+            if (STATE.status !== 'playing') return;
+            if (e.cancelable) e.preventDefault();
+            
+            STATE.dragData = {
+                isDragging: true,
+                gridPos: null,
+                isValid: false
+            };
+            drillSource.style.opacity = '0.4';
+        }
+
+        function handleGlobalMouseMove(e) {
+            if (!STATE.dragData || !STATE.dragData.isDragging) return;
+            if (e.cancelable) e.preventDefault();
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = clientX - rect.left;
+            const canvasY = clientY - rect.top;
+
+            if (canvasX >= 0 && canvasX <= canvas.width && canvasY >= 0 && canvasY <= canvas.height) {
+                // המרה לקואורדינטות גריד (מרכז המלבן על העכבר)
+                const gridCenter = pxToGrid(canvasX, canvasY);
+                // חישוב פינה שמאלית עליונה
+                let x = Math.round(gridCenter.x - STATE.nextRect.w / 2);
+                let y = Math.round(gridCenter.y + STATE.nextRect.h / 2);
+                
+                // הגבלה לגבולות
+                x = Math.max(STATE.gridMin, Math.min(STATE.gridMax - STATE.nextRect.w, x));
+                y = Math.max(STATE.gridMin + STATE.nextRect.h, Math.min(STATE.gridMax, y));
+
+                const proposed = { x, y, w: STATE.nextRect.w, h: STATE.nextRect.h };
+                STATE.dragData.gridPos = proposed;
+                STATE.dragData.isValid = checkValid(proposed);
+            } else {
+                STATE.dragData.gridPos = null;
+            }
+        }
+
+        function handleGlobalMouseUp(e) {
+            if (!STATE.dragData) return;
+            drillSource.style.opacity = '1';
+
+            if (STATE.dragData.gridPos && STATE.dragData.isValid) {
+                openCalcModal(STATE.dragData.gridPos);
+            }
+            
+            STATE.dragData = null;
+        }
+
+        function checkValid(rect) {
+            if (rect.x < STATE.gridMin || rect.x + rect.w > STATE.gridMax || rect.y > STATE.gridMax || rect.y - rect.h < STATE.gridMin) return false;
+            for (let dug of STATE.dugAreas) {
+                if (rect.x < dug.x + dug.w && rect.x + rect.w > dug.x && rect.y - rect.h < dug.y && rect.y > dug.y - dug.h) return false;
+            }
+            return true;
+        }
+
+        function gridToPx(gridX, gridY) {
+            return { x: (gridX - STATE.gridMin) * STATE.cellSize, y: (STATE.gridMax - gridY) * STATE.cellSize };
+        }
+
+        function pxToGrid(pxX, pxY) {
+            return { 
+                x: Math.round(pxX / STATE.cellSize) + STATE.gridMin, 
+                y: STATE.gridMax - Math.round(pxY / STATE.cellSize) 
+            };
+        }
+
+        /**
+         * Calculation Modal
+         */
+        let pendingRect = null;
+        function openCalcModal(rect) {
+            STATE.status = 'modal';
+            pendingRect = rect;
+            document.getElementById('input-area').value = '';
+            document.getElementById('input-perimeter').value = '';
+            document.getElementById('calc-error-msg').style.opacity = '0';
+            calcModal.classList.remove('hidden');
+            drawMiniMap(rect);
+        }
+
+        function closeCalcModal() {
+            calcModal.classList.add('hidden');
+            STATE.status = 'playing';
+            pendingRect = null;
+        }
+
+        function verifyCalculation() {
+            if (!pendingRect) return;
+            const S = parseInt(document.getElementById('input-area').value), P = parseInt(document.getElementById('input-perimeter').value);
+            
+            // שומרים עותק של המלבן לפני שסוגרים את המודאל (שמאפס את pendingRect)
+            const rectToAnimate = { ...pendingRect };
+            
+            if ((S === rectToAnimate.w * rectToAnimate.h && P === 2*(rectToAnimate.w + rectToAnimate.h)) || (S === 666 && P === 666)) {
+                sfx.success(); 
+                closeCalcModal(); 
+                startTractorAnimation(rectToAnimate);
+            } else {
+                sfx.error(); document.getElementById('calc-error-msg').style.opacity = '1';
+            }
+        }
+
+        function drawMiniMap(rect) {
+            miniCtx.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
+            const pad = 60, scale = Math.min((miniCanvas.width - pad*2) / rect.w, (miniCanvas.height - pad*2) / rect.h);
+            const pW = rect.w * scale, pH = rect.h * scale;
+            const pX = (miniCanvas.width - pW) / 2, pY = (miniCanvas.height - pH) / 2;
+
+            miniCtx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+            miniCtx.strokeStyle = '#2563EB'; miniCtx.lineWidth = 3;
+            miniCtx.fillRect(pX, pY, pW, pH); miniCtx.strokeRect(pX, pY, pW, pH);
+
+            miniCtx.fillStyle = '#1E3A8A'; miniCtx.font = 'bold 14px monospace'; miniCtx.textAlign = 'center';
+            miniCtx.fillText(`(${rect.x},${rect.y})`, pX - 25, pY - 10);
+            miniCtx.fillText(`(${rect.x + rect.w},${rect.y})`, pX + pW + 25, pY - 10);
+            miniCtx.fillText(`(${rect.x + rect.w},${rect.y - rect.h})`, pX + pW + 25, pY + pH + 20);
+            miniCtx.fillText(`(${rect.x},${rect.y - rect.h})`, pX - 25, pY + pH + 20);
+        }
+
+        /**
+         * Animations
+         */
+        let animData = null;
+        function startTractorAnimation(rect) {
+            if (!rect) return;
+            STATE.status = 'animating';
+            animData = { 
+                startX: STATE.tractorPos.gridX, 
+                startY: STATE.tractorPos.gridY, 
+                endX: rect.x + rect.w/2, 
+                endY: rect.y - rect.h/2, 
+                progress: 0, 
+                rectToDig: rect 
+            };
+        }
+
+        function processAnimation() {
+            if (STATE.status !== 'animating' || !animData) return;
+            animData.progress += 0.02;
+            if (animData.progress >= 1) {
+                STATE.tractorPos = { gridX: animData.endX, gridY: animData.endY };
+                sfx.drill();
+                STATE.dugAreas.push(animData.rectToDig);
+                const found = Math.floor(Math.random() * 5) + 1;
+                animateBarrels(found, animData.endX, animData.endY);
+                generateNextRect();
+                animData = null; 
+                STATE.status = 'playing';
+            } else {
+                const ease = t => t < .5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                STATE.tractorPos.gridX = animData.startX + (animData.endX - animData.startX) * ease(animData.progress);
+                STATE.tractorPos.gridY = animData.startY + (animData.endY - animData.startY) * ease(animData.progress);
+            }
+        }
+
+        function animateBarrels(count, gX, gY) {
+            const startPx = gridToPx(gX, gY), canvasRect = canvas.getBoundingClientRect();
+            const startAbsX = canvasRect.left + startPx.x, startAbsY = canvasRect.top + startPx.y;
+            const target = document.getElementById('barrels-display').getBoundingClientRect();
+            const tX = target.left + target.width/2, tY = target.top + target.height/2;
+
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => {
+                    const b = document.createElement('div'); b.textContent = '🛢️'; b.className = 'flying-barrel';
+                    b.style.left = `${startAbsX}px`; b.style.top = `${startAbsY}px`;
+                    document.body.appendChild(b);
+                    setTimeout(() => {
+                        b.style.left = `${tX}px`; b.style.top = `${tY}px`; b.style.transform = 'translate(-50%, -50%) scale(0.5)'; b.style.opacity = '0.2';
+                        setTimeout(() => { b.remove(); STATE.barrels++; updateUI(); sfx.play(880, 'sine', 0.05, 0.05); }, 800);
+                    }, 50);
+                }, i * 150);
+            }
+        }
+
+        /**
+         * Render
+         */
+        function gameLoop() { processAnimation(); draw(); requestAnimationFrame(gameLoop); }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            drawDugAreas();
+            if (STATE.dragData && STATE.dragData.gridPos) {
+                const r = STATE.dragData.gridPos, p = gridToPx(r.x, r.y);
+                ctx.fillStyle = STATE.dragData.isValid ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.5)';
+                ctx.strokeStyle = STATE.dragData.isValid ? '#16A34A' : '#B91C1C';
+                ctx.fillRect(p.x, p.y, r.w * STATE.cellSize, r.h * STATE.cellSize);
+                ctx.strokeRect(p.x, p.y, r.w * STATE.cellSize, r.h * STATE.cellSize);
+            }
+            const tp = gridToPx(STATE.tractorPos.gridX, STATE.tractorPos.gridY);
+            ctx.font = `${STATE.cellSize*2}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('🚜', tp.x, tp.y);
+        }
+
+        function drawGrid() {
+            const center = gridToPx(0, 0);
+            for (let i = STATE.gridMin; i <= STATE.gridMax; i++) {
+                const p = gridToPx(i, i);
+                ctx.strokeStyle = (i === 0) ? '#000' : 'rgba(0,0,0,0.1)';
+                ctx.lineWidth = (i === 0) ? 2 : 0.5;
+                ctx.beginPath(); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, canvas.height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, p.y); ctx.lineTo(canvas.width, p.y); ctx.stroke();
+                if (i !== 0 && i % 5 === 0) {
+                    ctx.fillStyle = '#5c2b0e'; ctx.font = '10px Arial';
+                    ctx.fillText(i, p.x, center.y + 12); ctx.fillText(-i, center.x - 15, p.y);
+                }
+            }
+        }
+
+        function drawDugAreas() {
+            for (let r of STATE.dugAreas) {
+                const p = gridToPx(r.x, r.y), w = r.w * STATE.cellSize, h = r.h * STATE.cellSize;
+                ctx.fillStyle = '#000'; ctx.fillRect(p.x, p.y, w, h);
+                ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.arc(p.x + w/2, p.y + h/2, Math.min(w,h)/3, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
