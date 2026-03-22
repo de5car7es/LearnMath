@@ -161,6 +161,43 @@
             osc.stop(audioCtx.currentTime + 0.2);
         }
 
+        // --- צלילי גרירת מראות ---
+        let dragOsc = null;
+        let dragGain = null;
+
+        function startDragSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            dragOsc = audioCtx.createOscillator();
+            dragGain = audioCtx.createGain();
+            
+            dragOsc.type = 'triangle'; // צליל סינטסייזר חללי נעים
+            dragOsc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            
+            dragGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            dragGain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.1);
+            
+            dragOsc.connect(dragGain);
+            dragGain.connect(audioCtx.destination);
+            dragOsc.start();
+        }
+
+        function updateDragSound(x, y) {
+            if (dragOsc) {
+                // משנים את התדר של הצליל בהתאם למיקום העכבר במסך (ליצירת אפקט חללי)
+                const freq = 150 + (x / 800) * 300 + (y / 600) * 200;
+                dragOsc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
+            }
+        }
+
+        function stopDragSound() {
+            if (dragGain) {
+                dragGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+                dragOsc.stop(audioCtx.currentTime + 0.1);
+                dragOsc = null;
+                dragGain = null;
+            }
+        }
+
         // --- מערך השלבים (רמות) ---
         const levels = [
             {
@@ -362,9 +399,85 @@
         let currentStageIdx = 0;
         let isAnimating = false;
         let animProgress = 0; // 0 to 1
+        let draggingMirrorIdx = -1; // אינדקס המראה הנגררת כעת
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+
+        // --- טיפול באירועי עכבר (גרירת מראות קודמות) ---
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (evt.clientX - rect.left) * scaleX,
+                y: (evt.clientY - rect.top) * scaleY
+            };
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e);
+            const stages = levels[currentLevelIdx].stages;
+            
+            // בודקים אם לחצנו על מראה שכבר נפתרה
+            for (let i = 0; i < currentStageIdx; i++) {
+                const m = stages[i].mirror;
+                if (Math.hypot(m.x - pos.x, m.y - pos.y) < 40) {
+                    draggingMirrorIdx = i;
+                    startDragSound();
+                    break;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getMousePos(e);
+            const stages = levels[currentLevelIdx].stages;
+
+            if (draggingMirrorIdx !== -1) {
+                // גרירה פעילה
+                stages[draggingMirrorIdx].mirror.x = pos.x;
+                stages[draggingMirrorIdx].mirror.y = pos.y;
+                
+                // עדכון נקודת היעד של המראה הקודמת (כדי לשמור על קשר חזותי במידה ומציירים)
+                if (draggingMirrorIdx > 0) {
+                    stages[draggingMirrorIdx - 1].target.x = pos.x;
+                    stages[draggingMirrorIdx - 1].target.y = pos.y;
+                }
+                
+                // עדכון נקודת ההתחלה של המראה הבאה (כדי שהקרן תמתח בצורה נכונה)
+                if (draggingMirrorIdx + 1 < stages.length) {
+                    stages[draggingMirrorIdx + 1].prev.x = pos.x;
+                    stages[draggingMirrorIdx + 1].prev.y = pos.y;
+                }
+
+                updateDragSound(pos.x, pos.y);
+                canvas.style.cursor = 'grabbing';
+            } else {
+                // רק ריחוף - נבדוק אם העכבר מעל מראה ישנה כדי לשנות סמן ליד
+                let hovering = false;
+                for (let i = 0; i < currentStageIdx; i++) {
+                    const m = stages[i].mirror;
+                    if (Math.hypot(m.x - pos.x, m.y - pos.y) < 40) {
+                        hovering = true;
+                        break;
+                    }
+                }
+                canvas.style.cursor = hovering ? 'grab' : 'default';
+            }
+        });
+
+        function endDrag() {
+            if (draggingMirrorIdx !== -1) {
+                draggingMirrorIdx = -1;
+                stopDragSound();
+                canvas.style.cursor = 'default';
+            }
+        }
+
+        canvas.addEventListener('mouseup', endDrag);
+        canvas.addEventListener('mouseleave', endDrag);
+
 
         // --- קוד סודי למורה: קפיצה על שלב (Alt + S) ---
         document.addEventListener('keydown', (e) => {
