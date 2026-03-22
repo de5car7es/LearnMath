@@ -45,6 +45,16 @@
             cursor: not-allowed;
         }
 
+        /* הסתרת החצים של שדה המספרים */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
         .correct-pulse {
             animation: pulseGreen 1s;
         }
@@ -91,7 +101,7 @@
             <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-700">
                 <h2 class="text-2xl font-bold text-blue-400">מרכז הבקרה</h2>
                 <div class="bg-slate-900 px-4 py-1 rounded-full text-green-400 font-mono font-bold text-lg">
-                    שלב <span id="stage-counter">1</span>/6
+                    שלב <span id="stage-counter">1</span>/<span id="total-stages">6</span>
                 </div>
             </div>
 
@@ -101,7 +111,7 @@
                 </h3>
 
                 <div id="options-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- הכפתורים יוזרקו לכאן דרך ה-JS -->
+                    <!-- הכפתורים או שדה ההזנה יוזרקו לכאן דרך ה-JS -->
                 </div>
                 
                 <p id="feedback-msg" class="text-center mt-6 text-lg font-bold min-h-[28px] opacity-0 transition-opacity"></p>
@@ -209,7 +219,7 @@
                 ]
             },
             {
-                // רמה 2 - מרובות אפשרויות וזוויות שונות (תוקן)
+                // רמה 2 - מרובות אפשרויות וזוויות שונות 
                 startPos: { x: 100, y: 500 },
                 doorPos: { x: 600, y: 500 },
                 stages: [
@@ -271,6 +281,79 @@
                         ]
                     }
                 ]
+            },
+            {
+                // רמה 3 - חיבור זוויות
+                startPos: { x: 50, y: 500 },
+                doorPos: { x: 750, y: 100 },
+                stages: [
+                    {
+                        mirror: { x: 250, y: 500, lbl: 'M1' }, prev: { x: 50, y: 500, lbl: 'A' },
+                        target: { x: 250, y: 300, lbl: 'M2' },
+                        midPoints: [{ x: 150, y: 400, lbl: 'B' }],
+                        angles: [
+                            { p1: {x: 50, y: 500}, p2: {x: 150, y: 400}, text: "45°" },
+                            { p1: {x: 150, y: 400}, p2: {x: 250, y: 300}, text: "45°" }
+                        ],
+                        question: "חשב את הזווית המלאה הדרושה כדי להגיע למטרה והזן אותה:",
+                        type: 'input', correctAnswer: 90
+                    },
+                    {
+                        mirror: { x: 250, y: 300, lbl: 'M2' }, prev: { x: 250, y: 500, lbl: '' },
+                        target: { x: 500, y: 300, lbl: 'M3' },
+                        midPoints: [{ x: 350, y: 200, lbl: 'C' }],
+                        angles: [
+                            { p1: {x: 250, y: 500}, p2: {x: 350, y: 200}, text: "50°" },
+                            { p1: {x: 350, y: 200}, p2: {x: 500, y: 300}, text: "40°" }
+                        ],
+                        question: "מהי הזווית הכוללת הדרושה להסטת הלייזר?",
+                        type: 'input', correctAnswer: 90
+                    },
+                    {
+                        mirror: { x: 500, y: 300, lbl: 'M3' }, prev: { x: 250, y: 300, lbl: '' },
+                        target: { x: 650, y: 500, lbl: 'M4' },
+                        midPoints: [{ x: 600, y: 400, lbl: 'D' }],
+                        angles: [
+                            { p1: {x: 250, y: 300}, p2: {x: 600, y: 400}, text: "85°" },
+                            { p1: {x: 600, y: 400}, p2: {x: 650, y: 500}, text: "50°" }
+                        ],
+                        question: "חבר את שתי הזוויות כדי לכוון למראה הבאה:",
+                        type: 'input', correctAnswer: 135
+                    },
+                    {
+                        mirror: { x: 650, y: 500, lbl: 'M4' }, prev: { x: 500, y: 300, lbl: '' },
+                        target: { x: 400, y: 500, lbl: 'M5' },
+                        midPoints: [{ x: 550, y: 600, lbl: 'E' }],
+                        angles: [
+                            { p1: {x: 500, y: 300}, p2: {x: 550, y: 600}, text: "75°" },
+                            { p1: {x: 550, y: 600}, p2: {x: 400, y: 500}, text: "35°" }
+                        ],
+                        question: "הזן את סכום הזוויות כדי לפגוע במטרה:",
+                        type: 'input', correctAnswer: 110
+                    },
+                    {
+                        mirror: { x: 400, y: 500, lbl: 'M5' }, prev: { x: 650, y: 500, lbl: '' },
+                        target: { x: 250, y: 200, lbl: 'M6' },
+                        midPoints: [{ x: 300, y: 350, lbl: 'F' }],
+                        angles: [
+                            { p1: {x: 650, y: 500}, p2: {x: 300, y: 350}, text: "100°" },
+                            { p1: {x: 300, y: 350}, p2: {x: 250, y: 200}, text: "45°" }
+                        ],
+                        question: "חשב את הזווית הכוללת המורכבת משתי הזוויות יחד:",
+                        type: 'input', correctAnswer: 145
+                    },
+                    {
+                        mirror: { x: 250, y: 200, lbl: 'M6' }, prev: { x: 400, y: 500, lbl: '' },
+                        target: { x: 750, y: 100, lbl: 'Door' },
+                        midPoints: [{ x: 400, y: 100, lbl: 'G' }],
+                        angles: [
+                            { p1: {x: 400, y: 500}, p2: {x: 400, y: 100}, text: "80°" },
+                            { p1: {x: 400, y: 100}, p2: {x: 750, y: 100}, text: "40°" }
+                        ],
+                        question: "השלב האחרון! חבר את הזוויות כדי לפתוח את הדלת:",
+                        type: 'input', correctAnswer: 120
+                    }
+                ]
             }
         ];
 
@@ -324,7 +407,6 @@
             }
         }
 
-        // עודכן כדי לתמוך באפקט לייזר זז
         function drawLaser(x1, y1, x2, y2, color = '#10b981', isDashed = false, isMoving = false) {
             ctx.beginPath();
             ctx.moveTo(x1, y1);
@@ -338,7 +420,6 @@
             if (isDashed) {
                 ctx.setLineDash([10, 10]);
             } else if (isMoving) {
-                // אפקט זרימת אנרגיה (הלייזר נע לאורכו)
                 ctx.setLineDash([20, 10]);
                 ctx.lineDashOffset = -(performance.now() / 30);
             } else {
@@ -351,7 +432,6 @@
             ctx.lineDashOffset = 0;
         }
 
-        // פונקציה חדשה: מסמנת את שטח הזווית בצהוב שקוף
         function drawHighlightedAngle(cx, cy, p1, p2) {
             let a1 = Math.atan2(p1.y - cy, p1.x - cx);
             let a2 = Math.atan2(p2.y - cy, p2.x - cx);
@@ -360,7 +440,6 @@
             if (a2 < 0) a2 += 2*Math.PI;
 
             let diff = a2 - a1;
-            // מנרמל את ההפרש כדי תמיד לצייר את הזווית הקטנה (עד 180)
             if (diff > Math.PI) diff -= 2*Math.PI;
             else if (diff < -Math.PI) diff += 2*Math.PI;
 
@@ -374,7 +453,7 @@
             }
             ctx.closePath();
             
-            ctx.fillStyle = 'rgba(253, 224, 71, 0.4)'; // צהוב שקוף
+            ctx.fillStyle = 'rgba(253, 224, 71, 0.4)'; 
             ctx.fill();
             ctx.strokeStyle = '#eab308';
             ctx.lineWidth = 2;
@@ -394,7 +473,7 @@
 
             ctx.beginPath();
             if (diff > 0) {
-                ctx.arc(cx, cy, 65, a1, a1 + diff, false); // רדיוס מוגדל כדי לא להסתיר את ההדגשה
+                ctx.arc(cx, cy, 65, a1, a1 + diff, false); 
             } else {
                 ctx.arc(cx, cy, 65, a1, a1 + diff, true);
             }
@@ -443,7 +522,6 @@
             ctx.fillText('דלת', doorPos.x, doorPos.y - 40);
         }
 
-        // --- לולאת הציור (מרונדרת עכשיו ברצף כדי להזיז את הלייזר) ---
         function renderScene() {
             const lvl = levels[currentLevelIdx];
             const stages = lvl.stages;
@@ -454,7 +532,7 @@
             drawPoint(lvl.startPos.x, lvl.startPos.y, 'התחלה', '#fbbf24');
             drawDoor();
 
-            // ציור המראות הקודמות (עם לייזרים זזים)
+            // מראות קודמות
             for (let i = 0; i < currentStageIdx; i++) {
                 const s = stages[i];
                 drawLaser(s.prev.x, s.prev.y, s.mirror.x, s.mirror.y, '#10b981', false, true);
@@ -464,52 +542,87 @@
             if (currentStageIdx < stages.length) {
                 const current = stages[currentStageIdx];
                 
-                // הלייזר עד למראה הנוכחית
+                // הלייזר המגיע
                 drawLaser(current.prev.x, current.prev.y, current.mirror.x, current.mirror.y, '#10b981', false, true);
                 
                 if (isAnimating) {
                     drawMirror(current.mirror.x, current.mirror.y);
                     const curX = current.mirror.x + (current.target.x - current.mirror.x) * animProgress;
                     const curY = current.mirror.y + (current.target.y - current.mirror.y) * animProgress;
-                    // לייזר המתקדם אל היעד הבא
                     drawLaser(current.mirror.x, current.mirror.y, curX, curY, '#10b981', false, true);
                 } 
                 else {
                     drawMirror(current.mirror.x, current.mirror.y);
                     
-                    const allOptions = [current.target, ...(current.distractors || [])];
-                    
-                    // ציור קווי עזר פוטנציאליים (אפור מקווקו) כדי שהתלמיד יראה את היעדים
-                    ctx.setLineDash([8, 8]);
-                    ctx.strokeStyle = '#64748b';
-                    ctx.lineWidth = 2;
-                    allOptions.forEach(opt => {
+                    if (current.type === 'input') {
+                        // מצב ציור לרמה 3 (חיבור זוויות)
+                        ctx.setLineDash([8, 8]);
+                        ctx.strokeStyle = '#64748b';
+                        ctx.lineWidth = 2;
+                        
+                        // קו מקווקו למטרה הסופית
                         ctx.beginPath();
                         ctx.moveTo(current.mirror.x, current.mirror.y);
-                        ctx.lineTo(opt.x, opt.y);
+                        ctx.lineTo(current.target.x, current.target.y);
                         ctx.stroke();
-                    });
-                    ctx.setLineDash([]);
-                    
-                    // ציור השטח הצהוב לזווית הנכונה בלבד
-                    drawHighlightedAngle(current.mirror.x, current.mirror.y, current.prev, current.target);
 
-                    // ציור כל הנקודות והתוויות באותו צבע (כדי שהמשתמש יצטרך לקרוא את האותיות)
-                    drawPoint(current.prev.x, current.prev.y, current.prev.lbl);
-                    drawPoint(current.mirror.x, current.mirror.y, current.mirror.lbl);
-                    allOptions.forEach(opt => {
-                        drawPoint(opt.x, opt.y, opt.lbl, '#38bdf8');
-                    });
-
-                    // במידה והשאלה היא מסוג אלפא, נצייר את קשתות הסימון
-                    if (current.type === 'alpha') {
-                        current.alphaSetup.forEach(alpha => {
-                            drawAngleArc(current.mirror.x, current.mirror.y, alpha.p1, alpha.p2, alpha.label, '#cbd5e1');
+                        // קו מקווקו לנקודת האמצע (המחלקת את הזווית)
+                        current.midPoints.forEach(mp => {
+                            ctx.beginPath();
+                            ctx.moveTo(current.mirror.x, current.mirror.y);
+                            ctx.lineTo(mp.x, mp.y);
+                            ctx.stroke();
                         });
+                        ctx.setLineDash([]);
+
+                        // הדגשת הזווית המלאה (היעד)
+                        drawHighlightedAngle(current.mirror.x, current.mirror.y, current.prev, current.target);
+
+                        // ציור קשתות המשנה עם הטקסטים שלהן
+                        current.angles.forEach((ang, idx) => {
+                            const color = idx === 0 ? '#fcd34d' : '#f472b6'; // צבע צהוב ואז ורוד
+                            drawAngleArc(current.mirror.x, current.mirror.y, ang.p1, ang.p2, ang.text, color);
+                        });
+
+                        // ציור הנקודות
+                        drawPoint(current.prev.x, current.prev.y, current.prev.lbl);
+                        drawPoint(current.mirror.x, current.mirror.y, current.mirror.lbl);
+                        drawPoint(current.target.x, current.target.y, current.target.lbl, '#38bdf8');
+                        current.midPoints.forEach(mp => {
+                            drawPoint(mp.x, mp.y, mp.lbl, '#94a3b8');
+                        });
+
+                    } else {
+                        // מצב ציור לרמות 1 ו-2
+                        const allOptions = [current.target, ...(current.distractors || [])];
+                        
+                        ctx.setLineDash([8, 8]);
+                        ctx.strokeStyle = '#64748b';
+                        ctx.lineWidth = 2;
+                        allOptions.forEach(opt => {
+                            ctx.beginPath();
+                            ctx.moveTo(current.mirror.x, current.mirror.y);
+                            ctx.lineTo(opt.x, opt.y);
+                            ctx.stroke();
+                        });
+                        ctx.setLineDash([]);
+                        
+                        drawHighlightedAngle(current.mirror.x, current.mirror.y, current.prev, current.target);
+
+                        drawPoint(current.prev.x, current.prev.y, current.prev.lbl);
+                        drawPoint(current.mirror.x, current.mirror.y, current.mirror.lbl);
+                        allOptions.forEach(opt => {
+                            drawPoint(opt.x, opt.y, opt.lbl, '#38bdf8');
+                        });
+
+                        if (current.type === 'alpha') {
+                            current.alphaSetup.forEach(alpha => {
+                                drawAngleArc(current.mirror.x, current.mirror.y, alpha.p1, alpha.p2, alpha.label, '#cbd5e1');
+                            });
+                        }
                     }
                 }
             } else {
-                // סיום השלב: פגיעה בדלת
                 const lastStage = stages[stages.length - 1];
                 drawLaser(lastStage.prev.x, lastStage.prev.y, lastStage.mirror.x, lastStage.mirror.y, '#10b981', false, true);
                 drawLaser(lastStage.mirror.x, lastStage.mirror.y, lvl.doorPos.x, lvl.doorPos.y, '#10b981', false, true);
@@ -517,15 +630,14 @@
             }
         }
 
-        // --- ניהול ממשק ומעבר שלבים ---
         function updateUI() {
             const stages = levels[currentLevelIdx].stages;
             document.getElementById('level-display').innerText = currentLevelIdx + 1;
+            document.getElementById('total-stages').innerText = stages.length;
 
             if (currentStageIdx >= stages.length) {
                 document.getElementById('end-screen').style.display = 'flex';
                 
-                // בדיקה אם יש עוד שלבים
                 if (currentLevelIdx < levels.length - 1) {
                     document.getElementById('end-title').innerText = "מעולה! 🎯";
                     document.getElementById('end-desc').innerText = "סיימת את השלב בהצלחה. מוכן לאתגר הבא?";
@@ -545,16 +657,50 @@
             document.getElementById('question-text').innerText = current.question;
             
             const optionsGrid = document.getElementById('options-grid');
-            optionsGrid.innerHTML = '';
             
-            current.options.forEach((opt, idx) => {
-                const btn = document.createElement('button');
-                btn.className = 'btn-option bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 rounded-lg py-4 text-xl font-bold transition-colors';
-                btn.dir = "ltr"; 
-                btn.innerText = opt;
-                btn.onclick = () => handleAnswer(idx, btn);
-                optionsGrid.appendChild(btn);
-            });
+            if (current.type === 'input') {
+                // תצוגת הקלדה לרמה 3
+                optionsGrid.className = "flex justify-center mt-4 w-full";
+                optionsGrid.innerHTML = `
+                    <div class="flex items-center space-x-4 space-x-reverse w-full max-w-sm">
+                        <input type="number" id="angle-input" placeholder="הכנס סכום מעלות..." 
+                               class="flex-grow bg-slate-700 text-white border-2 border-slate-600 rounded-lg py-3 px-4 text-2xl font-bold focus:outline-none focus:border-blue-500 text-center" dir="ltr">
+                        <button id="submit-angle-btn" class="btn-option bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg py-3 px-8 text-xl transition-colors whitespace-nowrap">
+                            שגר
+                        </button>
+                    </div>
+                `;
+                
+                const submitBtn = document.getElementById('submit-angle-btn');
+                const angleInput = document.getElementById('angle-input');
+                
+                submitBtn.onclick = function() {
+                    const val = parseInt(angleInput.value);
+                    if (!isNaN(val)) {
+                        handleAnswer(val, this);
+                    }
+                };
+                
+                angleInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') submitBtn.click();
+                });
+                
+                // פוקוס אוטומטי לנוחות התלמידים
+                setTimeout(() => angleInput.focus(), 100);
+
+            } else {
+                // תצוגת כפתורים רגילה לרמות 1 ו-2
+                optionsGrid.className = "grid grid-cols-1 md:grid-cols-2 gap-4";
+                optionsGrid.innerHTML = '';
+                current.options.forEach((opt, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-option bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 rounded-lg py-4 text-xl font-bold transition-colors';
+                    btn.dir = "ltr"; 
+                    btn.innerText = opt;
+                    btn.onclick = () => handleAnswer(idx, btn);
+                    optionsGrid.appendChild(btn);
+                });
+            }
 
             document.getElementById('feedback-msg').style.opacity = '0';
         }
@@ -566,16 +712,25 @@
             updateUI();
         }
 
-        function handleAnswer(selectedIdx, btnElement) {
+        function handleAnswer(selectedValue, btnElement) {
             if (isAnimating) return; 
             
             const current = levels[currentLevelIdx].stages[currentStageIdx];
             const feedbackMsg = document.getElementById('feedback-msg');
 
-            if (selectedIdx === current.correctIdx) {
+            let isCorrect = false;
+            if (current.type === 'input') {
+                isCorrect = (selectedValue === current.correctAnswer);
+            } else {
+                isCorrect = (selectedValue === current.correctIdx);
+            }
+
+            if (isCorrect) {
                 playSuccessSound();
                 btnElement.classList.replace('bg-slate-700', 'bg-green-600');
+                btnElement.classList.replace('bg-blue-600', 'bg-green-600'); // עבור הכפתור הכחול של שלב 3
                 btnElement.classList.replace('hover:bg-slate-600', 'hover:bg-green-500');
+                btnElement.classList.replace('hover:bg-blue-500', 'hover:bg-green-500');
                 
                 feedbackMsg.innerText = "מצוין! הלייזר תוקן.";
                 feedbackMsg.className = "text-center mt-6 text-lg font-bold min-h-[28px] text-green-400";
@@ -584,26 +739,28 @@
                 isAnimating = true;
                 animProgress = 0;
                 
-                document.querySelectorAll('.btn-option').forEach(b => b.disabled = true);
+                document.querySelectorAll('.btn-option, input').forEach(b => b.disabled = true);
             } else {
                 playErrorSound();
                 btnElement.classList.add('bg-red-600');
-                btnElement.classList.remove('bg-slate-700', 'hover:bg-slate-600');
+                btnElement.classList.remove('bg-slate-700', 'hover:bg-slate-600', 'bg-blue-600', 'hover:bg-blue-500');
                 
-                feedbackMsg.innerText = "זווית שגויה, נסה שוב!";
+                feedbackMsg.innerText = "טעות, נסה לחשב שוב!";
                 feedbackMsg.className = "text-center mt-6 text-lg font-bold min-h-[28px] text-red-400";
                 feedbackMsg.style.opacity = '1';
                 
                 setTimeout(() => {
                     btnElement.classList.remove('bg-red-600');
-                    btnElement.classList.add('bg-slate-700', 'hover:bg-slate-600');
+                    if(current.type === 'input') {
+                        btnElement.classList.add('bg-blue-600', 'hover:bg-blue-500');
+                    } else {
+                        btnElement.classList.add('bg-slate-700', 'hover:bg-slate-600');
+                    }
                     feedbackMsg.style.opacity = '0';
                 }, 1500);
             }
         }
 
-        // --- לולאת משחק רציפה (Game Loop) ---
-        // מאפשרת ללייזר לזרום ולהתקדם בצורה חלקה
         function gameLoop() {
             if (isAnimating) {
                 animProgress += 0.05; 
@@ -624,10 +781,9 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // --- אתחול ---
         window.onload = () => {
             updateUI();
-            requestAnimationFrame(gameLoop); // התחלת הלולאה הרציפה
+            requestAnimationFrame(gameLoop); 
         };
 
     </script>
