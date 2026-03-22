@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מבוך הלייזר - זיהוי זוויות</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Heebo', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        #game-container {
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.2);
+            border: 2px solid #334155;
+            border-radius: 12px;
+            overflow: hidden;
+            background-color: #1e293b;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-height: 70vh;
+        }
+
+        .btn-option {
+            transition: all 0.2s;
+        }
+        
+        .btn-option:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4);
+        }
+
+        .btn-option:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .correct-pulse {
+            animation: pulseGreen 1s;
+        }
+
+        @keyframes pulseGreen {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4 md:p-8">
+
+    <!-- כותרת המשחק -->
+    <header class="text-center mb-6">
+        <h1 class="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-l from-green-400 to-blue-500 mb-2">
+            מבוך הלייזר - משימה <span id="level-display">1</span>
+        </h1>
+        <p class="text-slate-400 text-lg">כוון את המראות באמצעות בחירת הזווית הנכונה כדי לפתוח את הדלת!</p>
+    </header>
+
+    <!-- אזור המשחק המרכזי -->
+    <main class="w-full max-w-6xl flex flex-col lg:flex-row gap-6">
+        
+        <!-- קנבס השרטוט -->
+        <div id="game-container" class="flex-grow w-full lg:w-2/3 aspect-[4/3]">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            
+            <!-- מסך סיום -->
+            <div id="end-screen" class="absolute inset-0 bg-slate-900/90 hidden flex-col items-center justify-center text-center p-6 backdrop-blur-sm z-10">
+                <h2 id="end-title" class="text-5xl font-bold text-green-400 mb-4">כל הכבוד! 🎯</h2>
+                <p id="end-desc" class="text-xl text-white mb-8">הצלחת לכוון את כל המראות ולפתוח את הדלת בהצלחה.</p>
+                <button id="next-level-btn" onclick="nextLevel()" class="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xl transition-colors mb-4">
+                    עבור לשלב הבא
+                </button>
+                <button id="restart-btn" onclick="location.reload()" class="hidden px-8 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-xl transition-colors">
+                    שחק שוב מהתחלה
+                </button>
+            </div>
+        </div>
+
+        <!-- פאנל השאלות והשליטה -->
+        <aside class="w-full lg:w-1/3 bg-slate-800 rounded-xl p-6 border border-slate-700 flex flex-col">
+            <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-700">
+                <h2 class="text-2xl font-bold text-blue-400">מרכז הבקרה</h2>
+                <div class="bg-slate-900 px-4 py-1 rounded-full text-green-400 font-mono font-bold text-lg">
+                    שלב <span id="stage-counter">1</span>/6
+                </div>
+            </div>
+
+            <div id="question-area" class="flex-grow flex flex-col justify-center">
+                <h3 id="question-text" class="text-xl md:text-2xl font-semibold mb-8 text-center leading-relaxed">
+                    טוען נתונים...
+                </h3>
+
+                <div id="options-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- הכפתורים יוזרקו לכאן דרך ה-JS -->
+                </div>
+                
+                <p id="feedback-msg" class="text-center mt-6 text-lg font-bold min-h-[28px] opacity-0 transition-opacity"></p>
+            </div>
+        </aside>
+
+    </main>
+
+    <script>
+        // --- הגדרות שמע (Web Audio API) ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playSuccessSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
+            osc.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.15); 
+            
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.4);
+        }
+
+        function playErrorSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+            
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+        }
+
+        // --- מערך השלבים (רמות) ---
+        const levels = [
+            {
+                // רמה 1 - זוויות ישרות בסיסיות
+                startPos: { x: 50, y: 50 },
+                doorPos: { x: 750, y: 250 },
+                stages: [
+                    {
+                        mirror: { x: 250, y: 50, lbl: 'B' }, prev: { x: 50, y: 50, lbl: 'A' },
+                        target: { x: 250, y: 250, lbl: 'D' }, distractors: [{ x: 450, y: 50, lbl: 'C' }],
+                        question: "מהו שמה של הזווית המסומנת בצהוב?",
+                        type: 'vertices', options: ['∡ABC', '∡ABD', '∡CBD'], correctIdx: 1
+                    },
+                    {
+                        mirror: { x: 250, y: 250, lbl: 'M2' }, prev: { x: 250, y: 50, lbl: '' },
+                        target: { x: 450, y: 250, lbl: 'M3' }, distractors: [{ x: 250, y: 450, lbl: '' }],
+                        question: "איזו זווית מיוצגת על ידי השטח המסומן?",
+                        type: 'alpha', options: ['α₁', 'α₂'], correctIdx: 1,
+                        alphaSetup: [
+                            { p1: {x: 250, y: 50}, p2: {x: 250, y: 450}, label: 'α₁' },
+                            { p1: {x: 250, y: 50}, p2: {x: 450, y: 250}, label: 'α₂' }
+                        ]
+                    },
+                    {
+                        mirror: { x: 450, y: 250, lbl: 'L' }, prev: { x: 250, y: 250, lbl: 'K' },
+                        target: { x: 450, y: 450, lbl: 'N' }, distractors: [{ x: 450, y: 50, lbl: 'M' }],
+                        question: "זהה את הזווית המודגשת:",
+                        type: 'vertices', options: ['∡KLM', '∡MLN', '∡KLN'], correctIdx: 2
+                    },
+                    {
+                        mirror: { x: 450, y: 450, lbl: 'M4' }, prev: { x: 450, y: 250, lbl: '' },
+                        target: { x: 650, y: 450, lbl: 'M5' }, distractors: [{ x: 250, y: 450, lbl: '' }],
+                        question: "בחר את הזווית המתאימה לשטח הצהוב:",
+                        type: 'alpha', options: ['α₁', 'α₂'], correctIdx: 0,
+                        alphaSetup: [
+                            { p1: {x: 450, y: 250}, p2: {x: 650, y: 450}, label: 'α₁' },
+                            { p1: {x: 450, y: 250}, p2: {x: 250, y: 450}, label: 'α₂' }
+                        ]
+                    },
+                    {
+                        mirror: { x: 650, y: 450, lbl: 'Q' }, prev: { x: 450, y: 450, lbl: 'P' },
+                        target: { x: 650, y: 250, lbl: 'S' }, distractors: [{ x: 650, y: 650, lbl: 'R' }],
+                        question: "מהו שמה של הזווית המודגשת?",
+                        type: 'vertices', options: ['∡PQS', '∡PQR', '∡RQS'], correctIdx: 0
+                    },
+                    {
+                        mirror: { x: 650, y: 250, lbl: 'M6' }, prev: { x: 650, y: 450, lbl: '' },
+                        target: { x: 750, y: 250, lbl: 'Door' }, distractors: [{ x: 450, y: 250, lbl: '' }],
+                        question: "זהה את הזווית המודגשת לפתיחת הדלת:",
+                        type: 'alpha', options: ['α₁', 'α₂'], correctIdx: 1,
+                        alphaSetup: [
+                            { p1: {x: 650, y: 450}, p2: {x: 450, y: 250}, label: 'α₁' },
+                            { p1: {x: 650, y: 450}, p2: {x: 750, y: 250}, label: 'α₂' }
+                        ]
+                    }
+                ]
+            },
+            {
+                // רמה 2 - מרובות אפשרויות וזוויות שונות (תוקן)
+                startPos: { x: 100, y: 500 },
+                doorPos: { x: 600, y: 500 },
+                stages: [
+                    {
+                        mirror: { x: 300, y: 500, lbl: 'B' }, prev: { x: 100, y: 500, lbl: 'A' },
+                        target: { x: 500, y: 300, lbl: 'C' }, 
+                        distractors: [{ x: 300, y: 300, lbl: 'D' }, { x: 500, y: 500, lbl: 'E' }],
+                        question: "מהו שמה של הזווית המסומנת בצהוב?",
+                        type: 'vertices', options: ['∡ABC', '∡ABD', '∡ABE', '∡CBE'], correctIdx: 0
+                    },
+                    {
+                        mirror: { x: 500, y: 300, lbl: 'M2' }, prev: { x: 300, y: 500, lbl: '' },
+                        target: { x: 500, y: 100, lbl: 'M3' }, 
+                        distractors: [{ x: 700, y: 300, lbl: '' }, { x: 700, y: 500, lbl: '' }],
+                        question: "איזו מזוויות האלפא מיוצגת על ידי השטח המסומן?",
+                        type: 'alpha', options: ['α₁', 'α₂', 'α₃'], correctIdx: 2,
+                        alphaSetup: [
+                            { p1: {x: 300, y: 500}, p2: {x: 700, y: 300}, label: 'α₁' },
+                            { p1: {x: 300, y: 500}, p2: {x: 700, y: 500}, label: 'α₂' },
+                            { p1: {x: 300, y: 500}, p2: {x: 500, y: 100}, label: 'α₃' }
+                        ]
+                    },
+                    {
+                        mirror: { x: 500, y: 100, lbl: 'G' }, prev: { x: 500, y: 300, lbl: 'F' },
+                        target: { x: 300, y: 100, lbl: 'H' }, 
+                        distractors: [{ x: 700, y: 100, lbl: 'I' }, { x: 500, y: 50, lbl: 'J' }],
+                        question: "זהה את הזווית המודגשת:",
+                        type: 'vertices', options: ['∡FGI', '∡FGH', '∡FGJ', '∡HGJ'], correctIdx: 1
+                    },
+                    {
+                        mirror: { x: 300, y: 100, lbl: 'M4' }, prev: { x: 500, y: 100, lbl: '' },
+                        target: { x: 100, y: 300, lbl: 'M5' }, 
+                        distractors: [{ x: 100, y: 100, lbl: '' }, { x: 300, y: 300, lbl: '' }],
+                        question: "בחר את הזווית המתאימה לשטח הצהוב:",
+                        type: 'alpha', options: ['α₁', 'α₂', 'α₃'], correctIdx: 1, 
+                        alphaSetup: [
+                            { p1: {x: 500, y: 100}, p2: {x: 100, y: 100}, label: 'α₁' },
+                            { p1: {x: 500, y: 100}, p2: {x: 100, y: 300}, label: 'α₂' },
+                            { p1: {x: 500, y: 100}, p2: {x: 300, y: 300}, label: 'α₃' }
+                        ]
+                    },
+                    {
+                        mirror: { x: 100, y: 300, lbl: 'L' }, prev: { x: 300, y: 100, lbl: 'K' },
+                        target: { x: 300, y: 500, lbl: 'M' }, 
+                        distractors: [{ x: 100, y: 500, lbl: 'N' }, { x: 100, y: 100, lbl: 'O' }],
+                        question: "מה שם הזווית המודגשת?",
+                        type: 'vertices', options: ['∡KLN', '∡KLO', '∡NLM', '∡KLM'], correctIdx: 3
+                    },
+                    {
+                        mirror: { x: 300, y: 500, lbl: 'M6' }, prev: { x: 100, y: 300, lbl: '' },
+                        target: { x: 600, y: 500, lbl: 'Door' }, 
+                        distractors: [{ x: 300, y: 600, lbl: '' }, { x: 100, y: 500, lbl: '' }],
+                        question: "השלב האחרון! זהה את הזווית המודגשת לפתיחת הדלת:",
+                        type: 'alpha', options: ['α₁', 'α₂', 'α₃'], correctIdx: 0,
+                        alphaSetup: [
+                            { p1: {x: 100, y: 300}, p2: {x: 600, y: 500}, label: 'α₁' },
+                            { p1: {x: 100, y: 300}, p2: {x: 300, y: 600}, label: 'α₂' },
+                            { p1: {x: 100, y: 300}, p2: {x: 100, y: 500}, label: 'α₃' }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        // --- משתני מערכת משחק ---
+        let currentLevelIdx = 0;
+        let currentStageIdx = 0;
+        let isAnimating = false;
+        let animProgress = 0; // 0 to 1
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- קוד סודי למורה: קפיצה על שלב (Alt + S) ---
+        document.addEventListener('keydown', (e) => {
+            if (e.altKey && e.key.toLowerCase() === 's') {
+                if(isAnimating) return;
+                currentStageIdx = levels[currentLevelIdx].stages.length;
+                updateUI();
+                playSuccessSound();
+                setTimeout(playSuccessSound, 200);
+            }
+        });
+
+        // --- פונקציות ציור עזר ---
+        function drawGrid() {
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1;
+            for(let i = 0; i <= 800; i += 50) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 600); ctx.stroke();
+            }
+            for(let j = 0; j <= 600; j += 50) {
+                ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(800, j); ctx.stroke();
+            }
+        }
+
+        function drawPoint(x, y, label, color = '#38bdf8') {
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            if (label) {
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 18px Heebo';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(label, x + 20, y - 15);
+            }
+        }
+
+        // עודכן כדי לתמוך באפקט לייזר זז
+        function drawLaser(x1, y1, x2, y2, color = '#10b981', isDashed = false, isMoving = false) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = color;
+            
+            if (isDashed) {
+                ctx.setLineDash([10, 10]);
+            } else if (isMoving) {
+                // אפקט זרימת אנרגיה (הלייזר נע לאורכו)
+                ctx.setLineDash([20, 10]);
+                ctx.lineDashOffset = -(performance.now() / 30);
+            } else {
+                ctx.setLineDash([]);
+            }
+            
+            ctx.stroke();
+            ctx.shadowBlur = 0; 
+            ctx.setLineDash([]);
+            ctx.lineDashOffset = 0;
+        }
+
+        // פונקציה חדשה: מסמנת את שטח הזווית בצהוב שקוף
+        function drawHighlightedAngle(cx, cy, p1, p2) {
+            let a1 = Math.atan2(p1.y - cy, p1.x - cx);
+            let a2 = Math.atan2(p2.y - cy, p2.x - cx);
+            
+            if (a1 < 0) a1 += 2*Math.PI;
+            if (a2 < 0) a2 += 2*Math.PI;
+
+            let diff = a2 - a1;
+            // מנרמל את ההפרש כדי תמיד לצייר את הזווית הקטנה (עד 180)
+            if (diff > Math.PI) diff -= 2*Math.PI;
+            else if (diff < -Math.PI) diff += 2*Math.PI;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            
+            if (diff > 0) {
+                ctx.arc(cx, cy, 50, a1, a1 + diff, false);
+            } else {
+                ctx.arc(cx, cy, 50, a1, a1 + diff, true);
+            }
+            ctx.closePath();
+            
+            ctx.fillStyle = 'rgba(253, 224, 71, 0.4)'; // צהוב שקוף
+            ctx.fill();
+            ctx.strokeStyle = '#eab308';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function drawAngleArc(cx, cy, p1, p2, label, color = '#fcd34d') {
+            let a1 = Math.atan2(p1.y - cy, p1.x - cx);
+            let a2 = Math.atan2(p2.y - cy, p2.x - cx);
+            
+            if (a1 < 0) a1 += 2*Math.PI;
+            if (a2 < 0) a2 += 2*Math.PI;
+
+            let diff = a2 - a1;
+            if (diff > Math.PI) diff -= 2*Math.PI;
+            else if (diff < -Math.PI) diff += 2*Math.PI;
+
+            ctx.beginPath();
+            if (diff > 0) {
+                ctx.arc(cx, cy, 65, a1, a1 + diff, false); // רדיוס מוגדל כדי לא להסתיר את ההדגשה
+            } else {
+                ctx.arc(cx, cy, 65, a1, a1 + diff, true);
+            }
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            let midAngle = a1 + diff / 2;
+            let txtX = cx + Math.cos(midAngle) * 85;
+            let txtY = cy + Math.sin(midAngle) * 85;
+
+            ctx.fillStyle = color;
+            ctx.font = 'bold 22px Heebo';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, txtX, txtY);
+        }
+
+        function drawMirror(x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(Math.PI / 4); 
+            
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#60a5fa';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(-20, -4, 40, 8);
+            
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(-18, -2, 36, 4);
+            
+            ctx.restore();
+        }
+
+        function drawDoor() {
+            const doorPos = levels[currentLevelIdx].doorPos;
+            const stagesLen = levels[currentLevelIdx].stages.length;
+
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(doorPos.x - 10, doorPos.y - 30, 20, 60);
+            ctx.fillStyle = currentStageIdx >= stagesLen ? '#10b981' : '#ef4444'; 
+            ctx.fillRect(doorPos.x - 5, doorPos.y - 10, 10, 20);
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 16px Heebo';
+            ctx.fillText('דלת', doorPos.x, doorPos.y - 40);
+        }
+
+        // --- לולאת הציור (מרונדרת עכשיו ברצף כדי להזיז את הלייזר) ---
+        function renderScene() {
+            const lvl = levels[currentLevelIdx];
+            const stages = lvl.stages;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+
+            drawPoint(lvl.startPos.x, lvl.startPos.y, 'התחלה', '#fbbf24');
+            drawDoor();
+
+            // ציור המראות הקודמות (עם לייזרים זזים)
+            for (let i = 0; i < currentStageIdx; i++) {
+                const s = stages[i];
+                drawLaser(s.prev.x, s.prev.y, s.mirror.x, s.mirror.y, '#10b981', false, true);
+                drawMirror(s.mirror.x, s.mirror.y);
+            }
+
+            if (currentStageIdx < stages.length) {
+                const current = stages[currentStageIdx];
+                
+                // הלייזר עד למראה הנוכחית
+                drawLaser(current.prev.x, current.prev.y, current.mirror.x, current.mirror.y, '#10b981', false, true);
+                
+                if (isAnimating) {
+                    drawMirror(current.mirror.x, current.mirror.y);
+                    const curX = current.mirror.x + (current.target.x - current.mirror.x) * animProgress;
+                    const curY = current.mirror.y + (current.target.y - current.mirror.y) * animProgress;
+                    // לייזר המתקדם אל היעד הבא
+                    drawLaser(current.mirror.x, current.mirror.y, curX, curY, '#10b981', false, true);
+                } 
+                else {
+                    drawMirror(current.mirror.x, current.mirror.y);
+                    
+                    const allOptions = [current.target, ...(current.distractors || [])];
+                    
+                    // ציור קווי עזר פוטנציאליים (אפור מקווקו) כדי שהתלמיד יראה את היעדים
+                    ctx.setLineDash([8, 8]);
+                    ctx.strokeStyle = '#64748b';
+                    ctx.lineWidth = 2;
+                    allOptions.forEach(opt => {
+                        ctx.beginPath();
+                        ctx.moveTo(current.mirror.x, current.mirror.y);
+                        ctx.lineTo(opt.x, opt.y);
+                        ctx.stroke();
+                    });
+                    ctx.setLineDash([]);
+                    
+                    // ציור השטח הצהוב לזווית הנכונה בלבד
+                    drawHighlightedAngle(current.mirror.x, current.mirror.y, current.prev, current.target);
+
+                    // ציור כל הנקודות והתוויות באותו צבע (כדי שהמשתמש יצטרך לקרוא את האותיות)
+                    drawPoint(current.prev.x, current.prev.y, current.prev.lbl);
+                    drawPoint(current.mirror.x, current.mirror.y, current.mirror.lbl);
+                    allOptions.forEach(opt => {
+                        drawPoint(opt.x, opt.y, opt.lbl, '#38bdf8');
+                    });
+
+                    // במידה והשאלה היא מסוג אלפא, נצייר את קשתות הסימון
+                    if (current.type === 'alpha') {
+                        current.alphaSetup.forEach(alpha => {
+                            drawAngleArc(current.mirror.x, current.mirror.y, alpha.p1, alpha.p2, alpha.label, '#cbd5e1');
+                        });
+                    }
+                }
+            } else {
+                // סיום השלב: פגיעה בדלת
+                const lastStage = stages[stages.length - 1];
+                drawLaser(lastStage.prev.x, lastStage.prev.y, lastStage.mirror.x, lastStage.mirror.y, '#10b981', false, true);
+                drawLaser(lastStage.mirror.x, lastStage.mirror.y, lvl.doorPos.x, lvl.doorPos.y, '#10b981', false, true);
+                drawMirror(lastStage.mirror.x, lastStage.mirror.y);
+            }
+        }
+
+        // --- ניהול ממשק ומעבר שלבים ---
+        function updateUI() {
+            const stages = levels[currentLevelIdx].stages;
+            document.getElementById('level-display').innerText = currentLevelIdx + 1;
+
+            if (currentStageIdx >= stages.length) {
+                document.getElementById('end-screen').style.display = 'flex';
+                
+                // בדיקה אם יש עוד שלבים
+                if (currentLevelIdx < levels.length - 1) {
+                    document.getElementById('end-title').innerText = "מעולה! 🎯";
+                    document.getElementById('end-desc').innerText = "סיימת את השלב בהצלחה. מוכן לאתגר הבא?";
+                    document.getElementById('next-level-btn').style.display = 'inline-block';
+                    document.getElementById('restart-btn').style.display = 'none';
+                } else {
+                    document.getElementById('end-title').innerText = "ניצחון! 🏆";
+                    document.getElementById('end-desc').innerText = "הצלחת לכוון את כל המראות ולפתוח את כל הדלתות במשחק.";
+                    document.getElementById('next-level-btn').style.display = 'none';
+                    document.getElementById('restart-btn').style.display = 'inline-block';
+                }
+                return;
+            }
+
+            const current = stages[currentStageIdx];
+            document.getElementById('stage-counter').innerText = currentStageIdx + 1;
+            document.getElementById('question-text').innerText = current.question;
+            
+            const optionsGrid = document.getElementById('options-grid');
+            optionsGrid.innerHTML = '';
+            
+            current.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-option bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 rounded-lg py-4 text-xl font-bold transition-colors';
+                btn.dir = "ltr"; 
+                btn.innerText = opt;
+                btn.onclick = () => handleAnswer(idx, btn);
+                optionsGrid.appendChild(btn);
+            });
+
+            document.getElementById('feedback-msg').style.opacity = '0';
+        }
+
+        function nextLevel() {
+            currentLevelIdx++;
+            currentStageIdx = 0;
+            document.getElementById('end-screen').style.display = 'none';
+            updateUI();
+        }
+
+        function handleAnswer(selectedIdx, btnElement) {
+            if (isAnimating) return; 
+            
+            const current = levels[currentLevelIdx].stages[currentStageIdx];
+            const feedbackMsg = document.getElementById('feedback-msg');
+
+            if (selectedIdx === current.correctIdx) {
+                playSuccessSound();
+                btnElement.classList.replace('bg-slate-700', 'bg-green-600');
+                btnElement.classList.replace('hover:bg-slate-600', 'hover:bg-green-500');
+                
+                feedbackMsg.innerText = "מצוין! הלייזר תוקן.";
+                feedbackMsg.className = "text-center mt-6 text-lg font-bold min-h-[28px] text-green-400";
+                feedbackMsg.style.opacity = '1';
+
+                isAnimating = true;
+                animProgress = 0;
+                
+                document.querySelectorAll('.btn-option').forEach(b => b.disabled = true);
+            } else {
+                playErrorSound();
+                btnElement.classList.add('bg-red-600');
+                btnElement.classList.remove('bg-slate-700', 'hover:bg-slate-600');
+                
+                feedbackMsg.innerText = "זווית שגויה, נסה שוב!";
+                feedbackMsg.className = "text-center mt-6 text-lg font-bold min-h-[28px] text-red-400";
+                feedbackMsg.style.opacity = '1';
+                
+                setTimeout(() => {
+                    btnElement.classList.remove('bg-red-600');
+                    btnElement.classList.add('bg-slate-700', 'hover:bg-slate-600');
+                    feedbackMsg.style.opacity = '0';
+                }, 1500);
+            }
+        }
+
+        // --- לולאת משחק רציפה (Game Loop) ---
+        // מאפשרת ללייזר לזרום ולהתקדם בצורה חלקה
+        function gameLoop() {
+            if (isAnimating) {
+                animProgress += 0.05; 
+                
+                if (animProgress >= 1) {
+                    isAnimating = false;
+                    currentStageIdx++;
+                    updateUI();
+                    
+                    if (currentStageIdx >= levels[currentLevelIdx].stages.length) {
+                        playSuccessSound(); 
+                        setTimeout(playSuccessSound, 200);
+                    }
+                }
+            }
+            
+            renderScene();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- אתחול ---
+        window.onload = () => {
+            updateUI();
+            requestAnimationFrame(gameLoop); // התחלת הלולאה הרציפה
+        };
+
+    </script>
+</body>
+</html>
