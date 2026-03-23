@@ -14,6 +14,7 @@
             --panel-bg: rgba(0, 20, 30, 0.9);
             --text-color: #e0e0e0;
             --danger: #ff4444;
+            --equation-color: #00bfff; /* תכלת בולט למשוואות */
         }
         body { 
             font-family: 'Courier New', Courier, monospace; 
@@ -35,9 +36,9 @@
         button.active { background-color: var(--primary); color: #000; box-shadow: 0 0 15px var(--primary); }
 
         #sidebar { 
-            width: 300px; background: var(--panel-bg); border-left: 2px solid var(--primary); 
+            width: 320px; background: var(--panel-bg); border-left: 2px solid var(--primary); 
             padding: 15px; display: flex; flex-direction: column; z-index: 10;
-            box-sizing: border-box;
+            box-sizing: border-box; overflow-y: auto;
         }
         
         #sidebar h2, #sidebar h3 { color: var(--primary); text-align: center; margin-top: 0; }
@@ -50,9 +51,18 @@
             margin-bottom: 20px; outline: none;
         }
         
-        .tools-grid {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;
+        .equation-panel {
+            margin-top: 10px; border-top: 2px dashed var(--primary); padding-top: 15px; text-align: center;
         }
+        .eq-inputs {
+            display: flex; align-items: center; justify-content: center; gap: 5px; 
+            direction: ltr; color: var(--equation-color); font-size: 16px; margin-bottom: 10px; font-weight: bold;
+        }
+        .eq-inputs input {
+            background: #000; color: #fff; border: 1px solid var(--equation-color); 
+            border-radius: 4px; width: 50px; text-align: center; font-family: 'Courier New'; font-size: 16px; padding: 4px;
+        }
+        .eq-inputs input:focus { outline: none; box-shadow: 0 0 5px var(--equation-color); }
 
         #delete-zone {
             margin-top: auto; padding: 20px; text-align: center;
@@ -79,7 +89,6 @@
             background: var(--bg-color); 
             cursor: crosshair;
             box-shadow: 0 0 20px rgba(0,255,128,0.1);
-            direction: ltr;
         }
     </style>
 </head>
@@ -88,17 +97,27 @@
     <div id="sidebar">
         <h2>מערכת קרטזית</h2>
         
-        <textarea rows="5" placeholder="הערות לשיעור (טקסט חופשי)..."></textarea>
+        <textarea rows="4" placeholder="הערות לשיעור (טקסט חופשי)..."></textarea>
         
-        <h3>כלי שרטוט</h3>
+        <h3 style="margin-bottom: 10px;">כלי שרטוט</h3>
         <button id="btn-select" class="active" onclick="setMode('select')">👆 בחירה / גרירה</button>
+        <button id="btn-point" onclick="setMode('point')">🔘 נקודה (לחיצה)</button>
         <button id="btn-line" onclick="setMode('line')">➖ קו (2 נקודות)</button>
         <button id="btn-rect" onclick="setMode('rect')">⬜ מלבן (2 נקודות)</button>
         <button id="btn-triangle" onclick="setMode('triangle')">📐 משולש (3 נקודות)</button>
         
-        <div style="font-size: 12px; color: #888; text-align: center; margin-top: 10px; line-height: 1.5;">
-            * כדי לשרטט צורה, בחר כלי ולחץ על המסך.<br>
-            * במצב "בחירה", ניתן לגרור צורות או קודקודים.
+        <div style="font-size: 12px; color: #888; text-align: center; line-height: 1.5; margin-bottom: 10px;">
+            * במצב "בחירה", ניתן לגרור צורות או קודקודים.<br>
+            * גרור ישר כדי לשנות את ה-b שלו.
+        </div>
+        
+        <div class="equation-panel">
+            <h3 style="color: var(--equation-color); margin-bottom: 10px;">פונקציה ליניארית</h3>
+            <div class="eq-inputs">
+                y = <input type="number" id="input-m" value="1" step="0.5" oninput="onInputsChanged()"> x + <input type="number" id="input-b" value="0" step="0.5" oninput="onInputsChanged()">
+            </div>
+            <div id="full-equation-display" style="font-size: 18px; font-weight: bold; margin-bottom: 15px; color: var(--equation-color); direction: ltr;">y = x</div>
+            <button onclick="addEquation()" style="background-color: #002233; border-color: var(--equation-color); color: var(--equation-color);">📈 הוסף גרף חדש</button>
         </div>
         
         <button onclick="clearAll()" style="background-color: #330000; border-color: var(--danger); color: var(--danger); margin-top: 15px;">🗑️ נקה לוח</button>
@@ -125,7 +144,7 @@
         const deleteZone = document.getElementById('delete-zone');
 
         // State variables
-        let currentMode = 'select'; // select, line, rect, triangle
+        let currentMode = 'select'; // select, point, line, rect, triangle
         let currentViewMode = 'all'; // all, q1, q2, q3
         let shapes = [];
         let pendingPoints = [];
@@ -135,6 +154,7 @@
         let dragInfo = null;
         let hoverInfo = null;
         let mousePos = { x: 0, y: 0 }; 
+        let activeEquation = null;
 
         // Viewport settings
         function setView(viewMode) {
@@ -165,6 +185,45 @@
             render();
         }
 
+        function onInputsChanged(updateShape = true) {
+            const mVal = parseFloat(document.getElementById('input-m').value);
+            const bVal = parseFloat(document.getElementById('input-b').value);
+            const m = isNaN(mVal) ? 1 : mVal;
+            const b = isNaN(bVal) ? 0 : bVal;
+            
+            document.getElementById('full-equation-display').innerText = formatEquation(m, b);
+            
+            if (updateShape && activeEquation) {
+                activeEquation.m = m;
+                activeEquation.b = b;
+                render();
+            }
+        }
+
+        function addEquation() {
+            const mVal = parseFloat(document.getElementById('input-m').value);
+            const bVal = parseFloat(document.getElementById('input-b').value);
+            const m = isNaN(mVal) ? 1 : mVal;
+            const b = isNaN(bVal) ? 0 : bVal;
+            
+            const newEq = { type: 'equation', m: m, b: b, id: Date.now() };
+            shapes.push(newEq);
+            activeEquation = newEq;
+            setMode('select');
+            render();
+        }
+
+        function formatEquation(m, b) {
+            m = Math.round(m * 100) / 100;
+            b = Math.round(b * 100) / 100;
+
+            if (m === 0) return `y = ${b}`;
+            let mx = m === 1 ? 'x' : (m === -1 ? '-x' : `${m}x`);
+            if (b === 0) return `y = ${mx}`;
+            let sign = b > 0 ? '+' : '-';
+            return `y = ${mx} ${sign} ${Math.abs(b)}`;
+        }
+
         // Setup Canvas
         function resizeCanvas() {
             const wrapper = document.getElementById('canvas-wrapper');
@@ -181,6 +240,14 @@
             return canvas.width / cols;
         }
 
+        function pxToGridExact(px, py) {
+            const cellSize = getCellSize();
+            return {
+                x: viewBounds.minX + (px / cellSize),
+                y: viewBounds.maxY - (py / cellSize)
+            };
+        }
+
         function gridToPx(gx, gy) {
             const cellSize = getCellSize();
             const x = (gx - viewBounds.minX) * cellSize;
@@ -189,10 +256,8 @@
         }
 
         function pxToGrid(px, py) {
-            const cellSize = getCellSize();
-            let gx = Math.round(viewBounds.minX + (px / cellSize));
-            let gy = Math.round(viewBounds.maxY - (py / cellSize));
-            return { x: gx, y: gy };
+            const exact = pxToGridExact(px, py);
+            return { x: Math.round(exact.x), y: Math.round(exact.y) };
         }
 
         // Drawing Functions
@@ -200,13 +265,14 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const cellSize = getCellSize();
             
-            // הכרחת ה-Canvas לעבוד משמאל לימין בשביל מתמטיקה
             ctx.direction = 'ltr';
             ctx.textAlign = 'center'; 
             ctx.textBaseline = 'middle';
 
             // Draw grid lines
-            for (let x = viewBounds.minX; x <= viewBounds.maxX; x++) {
+            const minXInt = Math.floor(viewBounds.minX);
+            const maxXInt = Math.ceil(viewBounds.maxX);
+            for (let x = minXInt; x <= maxXInt; x++) {
                 const px = gridToPx(x, 0).x;
                 ctx.lineWidth = (x === 0) ? 2 : 0.5;
                 ctx.strokeStyle = (x === 0) ? '#00ff80' : 'rgba(0, 255, 128, 0.3)';
@@ -214,23 +280,22 @@
                 let startY = 0;
                 let endY = canvas.height;
                 
-                if (currentViewMode === 'q3' && x > 0) {
-                    endY = gridToPx(0, 0).y;
-                }
+                if (currentViewMode === 'q3' && x > 0) endY = gridToPx(0, 0).y;
 
                 ctx.beginPath(); ctx.moveTo(px, startY); ctx.lineTo(px, endY); ctx.stroke();
                 
                 if (x !== 0) {
                     ctx.fillStyle = '#aaa'; ctx.font = '12px Courier New';
                     const yPos = Math.max(0, Math.min(canvas.height, gridToPx(0, 0).y));
-                    
                     let textY = yPos + 15;
                     if (yPos >= canvas.height - 20) textY = yPos - 12;
                     ctx.fillText(x.toString(), px, textY);
                 }
             }
 
-            for (let y = viewBounds.minY; y <= viewBounds.maxY; y++) {
+            const minYInt = Math.floor(viewBounds.minY);
+            const maxYInt = Math.ceil(viewBounds.maxY);
+            for (let y = minYInt; y <= maxYInt; y++) {
                 const py = gridToPx(0, y).y;
                 ctx.lineWidth = (y === 0) ? 2 : 0.5;
                 ctx.strokeStyle = (y === 0) ? '#00ff80' : 'rgba(0, 255, 128, 0.3)';
@@ -238,20 +303,16 @@
                 let startX = 0;
                 let endX = canvas.width;
                 
-                if (currentViewMode === 'q3' && y < 0) {
-                    endX = gridToPx(0, 0).x;
-                }
+                if (currentViewMode === 'q3' && y < 0) endX = gridToPx(0, 0).x;
 
                 ctx.beginPath(); ctx.moveTo(startX, py); ctx.lineTo(endX, py); ctx.stroke();
                 
                 if (y !== 0) {
                     ctx.fillStyle = '#aaa'; ctx.font = '12px Courier New';
                     const xPos = Math.max(0, Math.min(canvas.width, gridToPx(0, 0).x));
-                    
                     let textX = xPos - 15;
                     if (xPos <= 20) textX = xPos + 15; 
                     else if (xPos >= canvas.width - 20) textX = xPos - 15;
-                    
                     ctx.fillText(y.toString(), textX, py);
                 }
             }
@@ -263,21 +324,59 @@
                 let oY = origin.y + 15;
                 if (origin.x <= 20) oX = origin.x + 12;
                 if (origin.y >= canvas.height - 20) oY = origin.y - 12;
-                
                 ctx.fillStyle = '#aaa'; ctx.fillText("0", oX, oY);
             }
         }
 
         function drawShapes() {
             shapes.forEach(shape => drawShape(shape, false));
-            if (pendingPoints.length > 0) {
+            
+            // Previews for drawing mode
+            if (currentMode === 'point' && pendingPoints.length === 0) {
+                drawShape({ type: 'point', pts: [mousePos] }, true);
+            } else if (pendingPoints.length > 0) {
                 const tempShape = { type: currentMode, pts: [...pendingPoints, mousePos] };
                 drawShape(tempShape, true);
             }
         }
 
         function drawShape(shape, isPreview) {
-            if (shape.pts.length === 0) return;
+            if (shape.type === 'equation') {
+                const minX = viewBounds.minX - 5;
+                const maxX = viewBounds.maxX + 5;
+                const y1 = shape.m * minX + shape.b;
+                const y2 = shape.m * maxX + shape.b;
+                const p1 = gridToPx(minX, y1);
+                const p2 = gridToPx(maxX, y2);
+                
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.strokeStyle = (activeEquation === shape && !isPreview) ? '#ffb700' : (isPreview ? 'rgba(0, 191, 255, 0.5)' : '#00bfff');
+                ctx.lineWidth = (hoverInfo && hoverInfo.shape === shape) ? 5 : 3;
+                ctx.stroke();
+
+                if (!isPreview) {
+                    ctx.direction = 'ltr';
+                    let text = formatEquation(shape.m, shape.b);
+                    ctx.font = 'bold 16px Courier New';
+                    const textWidth = ctx.measureText(text).width;
+                    
+                    let midX = (Math.max(viewBounds.minX, -10) + Math.min(viewBounds.maxX, 10)) / 2;
+                    let midY = shape.m * midX + shape.b;
+                    const midP = gridToPx(midX, midY);
+
+                    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                    ctx.fillRect(midP.x - textWidth/2 - 5, midP.y - 25, textWidth + 10, 20);
+                    
+                    ctx.fillStyle = '#00bfff';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(text, midP.x, midP.y - 12);
+                }
+                return; // ישרים לא צריכים טיפול קודקודים
+            }
+
+            if (!shape.pts || shape.pts.length === 0) return;
 
             ctx.lineWidth = 2;
             ctx.strokeStyle = isPreview ? 'rgba(0, 255, 128, 0.5)' : '#00ff80';
@@ -285,7 +384,11 @@
 
             ctx.beginPath();
             
-            if (shape.type === 'line') {
+            if (shape.type === 'point') {
+                const p = gridToPx(shape.pts[0].x, shape.pts[0].y);
+                ctx.arc(p.x, p.y, 1, 0, Math.PI * 2); 
+            }
+            else if (shape.type === 'line') {
                 const p1 = gridToPx(shape.pts[0].x, shape.pts[0].y);
                 ctx.moveTo(p1.x, p1.y);
                 if (shape.pts.length > 1) {
@@ -296,21 +399,14 @@
             } 
             else if (shape.type === 'rect') {
                 if (shape.pts.length > 1) {
-                    const p1 = shape.pts[0];
-                    const p2 = shape.pts[1];
-                    const px1 = gridToPx(p1.x, p1.y);
-                    const px2 = gridToPx(p2.x, p2.y);
+                    const px1 = gridToPx(shape.pts[0].x, shape.pts[0].y);
+                    const px2 = gridToPx(shape.pts[1].x, shape.pts[1].y);
                     const minX = Math.min(px1.x, px2.x);
                     const minY = Math.min(px1.y, px2.y);
                     const w = Math.abs(px2.x - px1.x);
                     const h = Math.abs(px2.y - px1.y);
-                    
                     ctx.fillRect(minX, minY, w, h);
                     ctx.strokeRect(minX, minY, w, h);
-                } else {
-                    const p = gridToPx(shape.pts[0].x, shape.pts[0].y);
-                    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-                    ctx.fill();
                 }
             }
             else if (shape.type === 'triangle') {
@@ -325,9 +421,10 @@
                 ctx.stroke();
             }
 
-            if (!isPreview) {
+            // צביעת הקודקודים והתוויות
+            if (!isPreview || shape.type === 'point') {
                 let displayPts = shape.pts;
-                if (shape.type === 'rect') {
+                if (shape.type === 'rect' && shape.pts.length === 2) {
                     const p1 = shape.pts[0]; const p2 = shape.pts[1];
                     displayPts = [
                         {x: p1.x, y: p1.y}, {x: p2.x, y: p1.y},
@@ -347,19 +444,19 @@
                     ctx.beginPath(); ctx.arc(px.x, px.y, 4, 0, Math.PI * 2); ctx.fill();
                     ctx.strokeStyle = '#000'; ctx.stroke();
 
-                    // הכרחת כיווניות גם לתוויות
-                    ctx.direction = 'ltr';
-                    const text = `(${pt.x}, ${pt.y})`;
-                    ctx.font = 'bold 12px Courier New';
-                    const textWidth = ctx.measureText(text).width;
-                    
-                    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-                    // תיקון מיקום רקע הטקסט בהתאם לאורך
-                    ctx.fillRect(px.x - textWidth/2 - 4, px.y - 24, textWidth + 8, 16);
-                    
-                    ctx.fillStyle = '#00ff80';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(text, px.x, px.y - 16);
+                    if (!isPreview) {
+                        ctx.direction = 'ltr';
+                        const text = `(${pt.x}, ${pt.y})`;
+                        ctx.font = 'bold 12px Courier New';
+                        const textWidth = ctx.measureText(text).width;
+                        
+                        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                        ctx.fillRect(px.x - textWidth/2 - 4, px.y - 24, textWidth + 8, 16);
+                        
+                        ctx.fillStyle = '#00ff80';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(text, px.x, px.y - 16);
+                    }
                 });
             }
         }
@@ -377,8 +474,10 @@
             return { px: clientX - rect.left, py: clientY - rect.top, clientX, clientY };
         }
 
-        function hitTest(gridPt) {
+        function hitTest(gridPt, exactPt) {
+            // בדיקת קודקודים קודם כל (כולל נקודות)
             for (let s of shapes) {
+                if (s.type === 'equation') continue;
                 let ptsToCheck = s.pts;
                 if (s.type === 'rect') {
                     const p1 = s.pts[0], p2 = s.pts[1];
@@ -389,8 +488,14 @@
                 }
             }
             
+            // בדיקת גוף הצורות או ישרים
             for (let s of shapes) {
-                if (s.type === 'rect') {
+                if (s.type === 'equation' && exactPt) {
+                    // מרחק נקודה מדויקת מישר
+                    const dist = Math.abs(exactPt.y - s.m * exactPt.x - s.b) / Math.sqrt(s.m * s.m + 1);
+                    if (dist < 0.8) return { type: 'shape', shape: s };
+                }
+                else if (s.type === 'rect') {
                     const minX = Math.min(s.pts[0].x, s.pts[1].x);
                     const maxX = Math.max(s.pts[0].x, s.pts[1].x);
                     const minY = Math.min(s.pts[0].y, s.pts[1].y);
@@ -416,13 +521,33 @@
             if (e.button !== 0 && !e.touches) return; 
             const { px, py } = getEventPoint(e);
             const gridPt = pxToGrid(px, py);
+            const exactPt = pxToGridExact(px, py);
 
             if (currentMode === 'select') {
-                const hit = hitTest(gridPt);
-                if (hit) dragInfo = { ...hit, startX: gridPt.x, startY: gridPt.y, origShapePts: hit.shape.pts.map(p => ({...p})) };
+                const hit = hitTest(gridPt, exactPt);
+                if (hit) {
+                    dragInfo = { 
+                        ...hit, 
+                        startX: gridPt.x, startY: gridPt.y, 
+                        startExactX: exactPt.x, startExactY: exactPt.y,
+                        origShapePts: hit.shape.pts ? hit.shape.pts.map(p => ({...p})) : null,
+                        origShapeB: hit.shape.b !== undefined ? hit.shape.b : null,
+                        startPx: px, startPy: py, origBounds: { ...viewBounds }
+                    };
+                    if (hit.shape && hit.shape.type === 'equation') {
+                        activeEquation = hit.shape;
+                        document.getElementById('input-b').value = parseFloat(activeEquation.b.toFixed(2));
+                        document.getElementById('input-m').value = parseFloat(activeEquation.m.toFixed(2));
+                        onInputsChanged(false);
+                    }
+                } else {
+                    dragInfo = { type: 'pan', startPx: px, startPy: py, origBounds: { ...viewBounds } };
+                    canvas.style.cursor = 'grabbing';
+                }
             } else {
                 pendingPoints.push(gridPt);
-                if ((currentMode === 'line' && pendingPoints.length === 2) ||
+                if ((currentMode === 'point' && pendingPoints.length === 1) ||
+                    (currentMode === 'line' && pendingPoints.length === 2) ||
                     (currentMode === 'rect' && pendingPoints.length === 2) ||
                     (currentMode === 'triangle' && pendingPoints.length === 3)) {
                     shapes.push({ type: currentMode, pts: [...pendingPoints], id: Date.now() });
@@ -436,15 +561,43 @@
         canvas.addEventListener('mousemove', (e) => {
             const { px, py, clientX, clientY } = getEventPoint(e);
             mousePos = pxToGrid(px, py); 
+            const exactPt = pxToGridExact(px, py);
 
             if (dragInfo) {
+                if (dragInfo.type === 'pan') {
+                    const dxPx = px - dragInfo.startPx;
+                    const dyPx = py - dragInfo.startPy;
+                    const w = dragInfo.origBounds.maxX - dragInfo.origBounds.minX;
+                    const h = dragInfo.origBounds.maxY - dragInfo.origBounds.minY;
+                    const dxGrid = dxPx * (w / canvas.width);
+                    const dyGrid = dyPx * (h / canvas.height); 
+                    
+                    viewBounds.minX = dragInfo.origBounds.minX - dxGrid;
+                    viewBounds.maxX = dragInfo.origBounds.maxX - dxGrid;
+                    viewBounds.minY = dragInfo.origBounds.minY + dyGrid;
+                    viewBounds.maxY = dragInfo.origBounds.maxY + dyGrid;
+                    
+                    render();
+                    return;
+                }
+
                 const dx = mousePos.x - dragInfo.startX;
                 const dy = mousePos.y - dragInfo.startY;
 
                 if (dragInfo.type === 'shape') {
-                    for (let i = 0; i < dragInfo.shape.pts.length; i++) {
-                        dragInfo.shape.pts[i].x = dragInfo.origShapePts[i].x + dx;
-                        dragInfo.shape.pts[i].y = dragInfo.origShapePts[i].y + dy;
+                    if (dragInfo.shape.type === 'equation') {
+                        const exactDx = exactPt.x - dragInfo.startExactX;
+                        const exactDy = exactPt.y - dragInfo.startExactY;
+                        dragInfo.shape.b = dragInfo.origShapeB + exactDy - dragInfo.shape.m * exactDx;
+                        
+                        document.getElementById('input-b').value = parseFloat(dragInfo.shape.b.toFixed(2));
+                        document.getElementById('input-m').value = parseFloat(dragInfo.shape.m.toFixed(2));
+                        onInputsChanged(false);
+                    } else if (dragInfo.shape.pts) {
+                        for (let i = 0; i < dragInfo.shape.pts.length; i++) {
+                            dragInfo.shape.pts[i].x = dragInfo.origShapePts[i].x + dx;
+                            dragInfo.shape.pts[i].y = dragInfo.origShapePts[i].y + dy;
+                        }
                     }
                 } else if (dragInfo.type === 'vertex') {
                     if (dragInfo.shape.type === 'rect') {
@@ -467,8 +620,14 @@
 
             } else if (currentMode === 'select') {
                 const prevHover = hoverInfo;
-                hoverInfo = hitTest(mousePos);
-                if (hoverInfo !== prevHover) canvas.style.cursor = hoverInfo ? (hoverInfo.type === 'vertex' ? 'move' : 'pointer') : 'crosshair';
+                hoverInfo = hitTest(mousePos, exactPt);
+                if (hoverInfo !== prevHover) {
+                    if (hoverInfo) {
+                        canvas.style.cursor = hoverInfo.type === 'vertex' ? 'move' : 'pointer';
+                    } else {
+                        canvas.style.cursor = 'grab';
+                    }
+                }
             }
             render();
         });
@@ -490,6 +649,34 @@
         canvas.addEventListener('touchmove', (e) => { e.preventDefault(); canvas.dispatchEvent(new MouseEvent('mousemove', e.touches[0])); }, {passive: false});
         window.addEventListener('touchend', (e) => { window.dispatchEvent(new MouseEvent('mouseup', e.changedTouches[0])); });
 
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+            const { px, py } = getEventPoint(e);
+            const exactCenter = pxToGridExact(px, py);
+            
+            let w = viewBounds.maxX - viewBounds.minX;
+            let h = viewBounds.maxY - viewBounds.minY;
+            
+            let newW = w * zoomFactor;
+            let newH = h * zoomFactor;
+            
+            if (newW > 40) { newW = 40; newH = 40; } 
+            if (newW < 2) { newW = 2; newH = 2; } 
+            
+            const fracX = px / canvas.width;
+            const fracY = py / canvas.height;
+            
+            viewBounds.minX = exactCenter.x - fracX * newW;
+            viewBounds.maxX = viewBounds.minX + newW;
+            viewBounds.maxY = exactCenter.y + fracY * newH;
+            viewBounds.minY = viewBounds.maxY - newH;
+            
+            render();
+        }, { passive: false });
+
+        // אתחול התצוגה של המשוואה
+        onInputsChanged(false);
         setView('all');
     </script>
 </body>
