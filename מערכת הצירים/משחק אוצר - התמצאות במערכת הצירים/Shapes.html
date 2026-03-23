@@ -36,7 +36,7 @@
         button.active { background-color: var(--primary); color: #000; box-shadow: 0 0 15px var(--primary); }
 
         #sidebar { 
-            width: 320px; background: var(--panel-bg); border-left: 2px solid var(--primary); 
+            width: 330px; background: var(--panel-bg); border-left: 2px solid var(--primary); 
             padding: 15px; display: flex; flex-direction: column; z-index: 10;
             box-sizing: border-box; overflow-y: auto;
         }
@@ -55,12 +55,12 @@
             margin-top: 10px; border-top: 2px dashed var(--primary); padding-top: 15px; text-align: center;
         }
         .eq-inputs {
-            display: flex; align-items: center; justify-content: center; gap: 5px; 
+            display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;
             direction: ltr; color: var(--equation-color); font-size: 16px; margin-bottom: 10px; font-weight: bold;
         }
         .eq-inputs input {
             background: #000; color: #fff; border: 1px solid var(--equation-color); 
-            border-radius: 4px; width: 50px; text-align: center; font-family: 'Courier New'; font-size: 16px; padding: 4px;
+            border-radius: 4px; text-align: center; font-family: 'Courier New'; font-size: 16px; padding: 4px;
         }
         .eq-inputs input:focus { outline: none; box-shadow: 0 0 5px var(--equation-color); }
 
@@ -100,21 +100,26 @@
         <textarea rows="4" placeholder="הערות לשיעור (טקסט חופשי)..."></textarea>
         
         <h3 style="margin-bottom: 10px;">כלי שרטוט</h3>
-        <button id="btn-select" class="active" onclick="setMode('select')">👆 בחירה / גרירה</button>
+        <button id="btn-select" class="active" onclick="setMode('select')">👆 בחירה / שוטטות</button>
         <button id="btn-point" onclick="setMode('point')">🔘 נקודה (לחיצה)</button>
         <button id="btn-line" onclick="setMode('line')">➖ קו (2 נקודות)</button>
         <button id="btn-rect" onclick="setMode('rect')">⬜ מלבן (2 נקודות)</button>
         <button id="btn-triangle" onclick="setMode('triangle')">📐 משולש (3 נקודות)</button>
         
         <div style="font-size: 12px; color: #888; text-align: center; line-height: 1.5; margin-bottom: 10px;">
-            * במצב "בחירה", ניתן לגרור צורות או קודקודים.<br>
-            * גרור ישר כדי לשנות את ה-b שלו.
+            * במצב "בחירה", לחץ על רקע ריק וגרור כדי לשוטט.<br>
+            * גרור גרף של פונקציה כדי להזיז אותו במרחב.
         </div>
         
         <div class="equation-panel">
             <h3 style="color: var(--equation-color); margin-bottom: 10px;">פונקציה ליניארית</h3>
             <div class="eq-inputs">
-                y = <input type="number" id="input-m" value="1" step="0.5" oninput="onInputsChanged()"> x + <input type="number" id="input-b" value="0" step="0.5" oninput="onInputsChanged()">
+                <span>y =</span>
+                <input type="number" id="input-m" value="1" step="0.5" oninput="onInputsChanged()" style="width: 45px;">
+                <span>(x -</span>
+                <input type="number" id="input-p" value="0" step="0.5" oninput="onInputsChanged()" style="width: 45px;">
+                <span>) +</span>
+                <input type="number" id="input-b" value="0" step="0.5" oninput="onInputsChanged()" style="width: 45px;">
             </div>
             <div id="full-equation-display" style="font-size: 18px; font-weight: bold; margin-bottom: 15px; color: var(--equation-color); direction: ltr;">y = x</div>
             <button onclick="addEquation()" style="background-color: #002233; border-color: var(--equation-color); color: var(--equation-color);">📈 הוסף גרף חדש</button>
@@ -187,14 +192,17 @@
 
         function onInputsChanged(updateShape = true) {
             const mVal = parseFloat(document.getElementById('input-m').value);
+            const pVal = parseFloat(document.getElementById('input-p').value);
             const bVal = parseFloat(document.getElementById('input-b').value);
             const m = isNaN(mVal) ? 1 : mVal;
+            const p = isNaN(pVal) ? 0 : pVal;
             const b = isNaN(bVal) ? 0 : bVal;
             
-            document.getElementById('full-equation-display').innerText = formatEquation(m, b);
+            document.getElementById('full-equation-display').innerText = formatEquation(m, p, b);
             
             if (updateShape && activeEquation) {
                 activeEquation.m = m;
+                activeEquation.p = p;
                 activeEquation.b = b;
                 render();
             }
@@ -202,26 +210,46 @@
 
         function addEquation() {
             const mVal = parseFloat(document.getElementById('input-m').value);
+            const pVal = parseFloat(document.getElementById('input-p').value);
             const bVal = parseFloat(document.getElementById('input-b').value);
             const m = isNaN(mVal) ? 1 : mVal;
+            const p = isNaN(pVal) ? 0 : pVal;
             const b = isNaN(bVal) ? 0 : bVal;
             
-            const newEq = { type: 'equation', m: m, b: b, id: Date.now() };
+            const newEq = { type: 'equation', m: m, p: p, b: b, id: Date.now() };
             shapes.push(newEq);
             activeEquation = newEq;
             setMode('select');
             render();
         }
 
-        function formatEquation(m, b) {
+        function formatEquation(m, p, b) {
             m = Math.round(m * 100) / 100;
+            p = Math.round(p * 100) / 100;
             b = Math.round(b * 100) / 100;
 
             if (m === 0) return `y = ${b}`;
-            let mx = m === 1 ? 'x' : (m === -1 ? '-x' : `${m}x`);
-            if (b === 0) return `y = ${mx}`;
-            let sign = b > 0 ? '+' : '-';
-            return `y = ${mx} ${sign} ${Math.abs(b)}`;
+            
+            let mStr = m === 1 ? '' : (m === -1 ? '-' : `${m}`);
+            
+            let xPart = '';
+            if (p === 0) {
+                xPart = `x`;
+            } else if (p > 0) {
+                xPart = `(x - ${p})`;
+            } else {
+                xPart = `(x + ${Math.abs(p)})`;
+            }
+
+            let eq = `y = ${mStr}${xPart}`;
+
+            if (b > 0) eq += ` + ${b}`;
+            else if (b < 0) eq += ` - ${Math.abs(b)}`;
+            
+            if (eq === 'y = ') eq = 'y = x';
+            if (eq === 'y = -') eq = 'y = -x';
+
+            return eq;
         }
 
         // Setup Canvas
@@ -344,8 +372,8 @@
             if (shape.type === 'equation') {
                 const minX = viewBounds.minX - 5;
                 const maxX = viewBounds.maxX + 5;
-                const y1 = shape.m * minX + shape.b;
-                const y2 = shape.m * maxX + shape.b;
+                const y1 = shape.m * (minX - shape.p) + shape.b;
+                const y2 = shape.m * (maxX - shape.p) + shape.b;
                 const p1 = gridToPx(minX, y1);
                 const p2 = gridToPx(maxX, y2);
                 
@@ -358,12 +386,12 @@
 
                 if (!isPreview) {
                     ctx.direction = 'ltr';
-                    let text = formatEquation(shape.m, shape.b);
+                    let text = formatEquation(shape.m, shape.p, shape.b);
                     ctx.font = 'bold 16px Courier New';
                     const textWidth = ctx.measureText(text).width;
                     
                     let midX = (Math.max(viewBounds.minX, -10) + Math.min(viewBounds.maxX, 10)) / 2;
-                    let midY = shape.m * midX + shape.b;
+                    let midY = shape.m * (midX - shape.p) + shape.b;
                     const midP = gridToPx(midX, midY);
 
                     ctx.fillStyle = 'rgba(0,0,0,0.8)';
@@ -492,7 +520,8 @@
             for (let s of shapes) {
                 if (s.type === 'equation' && exactPt) {
                     // מרחק נקודה מדויקת מישר
-                    const dist = Math.abs(exactPt.y - s.m * exactPt.x - s.b) / Math.sqrt(s.m * s.m + 1);
+                    const yLine = s.m * (exactPt.x - s.p) + s.b;
+                    const dist = Math.abs(exactPt.y - yLine) / Math.sqrt(s.m * s.m + 1);
                     if (dist < 0.8) return { type: 'shape', shape: s };
                 }
                 else if (s.type === 'rect') {
@@ -531,13 +560,15 @@
                         startX: gridPt.x, startY: gridPt.y, 
                         startExactX: exactPt.x, startExactY: exactPt.y,
                         origShapePts: hit.shape.pts ? hit.shape.pts.map(p => ({...p})) : null,
+                        origShapeP: hit.shape.p !== undefined ? hit.shape.p : null,
                         origShapeB: hit.shape.b !== undefined ? hit.shape.b : null,
                         startPx: px, startPy: py, origBounds: { ...viewBounds }
                     };
                     if (hit.shape && hit.shape.type === 'equation') {
                         activeEquation = hit.shape;
-                        document.getElementById('input-b').value = parseFloat(activeEquation.b.toFixed(2));
                         document.getElementById('input-m').value = parseFloat(activeEquation.m.toFixed(2));
+                        document.getElementById('input-p').value = parseFloat(activeEquation.p.toFixed(2));
+                        document.getElementById('input-b').value = parseFloat(activeEquation.b.toFixed(2));
                         onInputsChanged(false);
                     }
                 } else {
@@ -588,10 +619,12 @@
                     if (dragInfo.shape.type === 'equation') {
                         const exactDx = exactPt.x - dragInfo.startExactX;
                         const exactDy = exactPt.y - dragInfo.startExactY;
-                        dragInfo.shape.b = dragInfo.origShapeB + exactDy - dragInfo.shape.m * exactDx;
                         
+                        dragInfo.shape.p = dragInfo.origShapeP + exactDx;
+                        dragInfo.shape.b = dragInfo.origShapeB + exactDy;
+                        
+                        document.getElementById('input-p').value = parseFloat(dragInfo.shape.p.toFixed(2));
                         document.getElementById('input-b').value = parseFloat(dragInfo.shape.b.toFixed(2));
-                        document.getElementById('input-m').value = parseFloat(dragInfo.shape.m.toFixed(2));
                         onInputsChanged(false);
                     } else if (dragInfo.shape.pts) {
                         for (let i = 0; i < dragInfo.shape.pts.length; i++) {
@@ -661,7 +694,7 @@
             let newW = w * zoomFactor;
             let newH = h * zoomFactor;
             
-            if (newW > 40) { newW = 40; newH = 40; } 
+            if (newW > 80) { newW = 80; newH = 80; } 
             if (newW < 2) { newW = 2; newH = 2; } 
             
             const fracX = px / canvas.width;
