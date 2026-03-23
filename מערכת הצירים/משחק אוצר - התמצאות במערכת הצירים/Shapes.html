@@ -134,7 +134,7 @@
             <div class="eq-inputs">
                 <span>y =</span>
                 <input type="number" id="input-m" value="1" step="0.5" oninput="onInputsChanged()" style="width: 45px;">
-                <span>(x -</span>
+                <span>(x +</span>
                 <input type="number" id="input-p" value="0" step="0.5" oninput="onInputsChanged()" style="width: 45px;">
                 <span>) +</span>
                 <input type="number" id="input-b" value="0" step="0.5" oninput="onInputsChanged()" style="width: 45px;">
@@ -266,9 +266,9 @@
             if (p === 0) {
                 xPart = `x`;
             } else if (p > 0) {
-                xPart = `(x - ${p})`;
+                xPart = `(x + ${p})`;
             } else {
-                xPart = `(x + ${Math.abs(p)})`;
+                xPart = `(x - ${Math.abs(p)})`;
             }
 
             let eq = `y = ${mStr}${xPart}`;
@@ -402,8 +402,8 @@
             if (shape.type === 'equation') {
                 const minX = viewBounds.minX - 5;
                 const maxX = viewBounds.maxX + 5;
-                const y1 = shape.m * (minX - shape.p) + shape.b;
-                const y2 = shape.m * (maxX - shape.p) + shape.b;
+                const y1 = shape.m * (minX + shape.p) + shape.b;
+                const y2 = shape.m * (maxX + shape.p) + shape.b;
                 const p1 = gridToPx(minX, y1);
                 const p2 = gridToPx(maxX, y2);
                 
@@ -421,7 +421,7 @@
                     const textWidth = ctx.measureText(text).width;
                     
                     let midX = (Math.max(viewBounds.minX, -10) + Math.min(viewBounds.maxX, 10)) / 2;
-                    let midY = shape.m * (midX - shape.p) + shape.b;
+                    let midY = shape.m * (midX + shape.p) + shape.b;
                     const midP = gridToPx(midX, midY);
 
                     ctx.fillStyle = 'rgba(0,0,0,0.8)';
@@ -550,7 +550,7 @@
             for (let s of shapes) {
                 if (s.type === 'equation' && exactPt) {
                     // מרחק נקודה מדויקת מישר
-                    const yLine = s.m * (exactPt.x - s.p) + s.b;
+                    const yLine = s.m * (exactPt.x + s.p) + s.b;
                     const dist = Math.abs(exactPt.y - yLine) / Math.sqrt(s.m * s.m + 1);
                     if (dist < 0.8) return { type: 'shape', shape: s };
                 }
@@ -650,7 +650,7 @@
                         const exactDx = exactPt.x - dragInfo.startExactX;
                         const exactDy = exactPt.y - dragInfo.startExactY;
                         
-                        dragInfo.shape.p = dragInfo.origShapeP + exactDx;
+                        dragInfo.shape.p = dragInfo.origShapeP - exactDx;
                         dragInfo.shape.b = dragInfo.origShapeB + exactDy;
                         
                         document.getElementById('input-p').value = parseFloat(dragInfo.shape.p.toFixed(2));
