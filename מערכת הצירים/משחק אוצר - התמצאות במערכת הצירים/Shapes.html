@@ -47,9 +47,20 @@
             width: 100%; background: #000; color: var(--primary);
             border: 2px solid var(--primary); border-radius: 4px;
             padding: 8px; font-family: 'Courier New', Courier, monospace;
-            font-size: 14px; box-sizing: border-box; resize: none;
+            font-size: 14px; box-sizing: border-box; resize: vertical; min-height: 60px;
             margin-bottom: 20px; outline: none;
         }
+
+        .textarea-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;
+        }
+
+        .font-btn {
+            background: #000; color: var(--primary); border: 1px solid var(--primary);
+            border-radius: 3px; cursor: pointer; padding: 2px 8px; font-weight: bold; font-family: monospace;
+            margin: 0 0 0 5px; width: auto; font-size: 14px; box-shadow: none;
+        }
+        .font-btn:hover { background: var(--primary); color: #000; box-shadow: none; }
         
         .equation-panel {
             margin-top: 10px; border-top: 2px dashed var(--primary); padding-top: 15px; text-align: center;
@@ -97,7 +108,14 @@
     <div id="sidebar">
         <h2>מערכת קרטזית</h2>
         
-        <textarea rows="4" placeholder="הערות לשיעור (טקסט חופשי)..."></textarea>
+        <div class="textarea-header">
+            <span style="color: #888; font-size: 14px;">הערות לשיעור:</span>
+            <div>
+                <button class="font-btn" onclick="changeTextareaFont(1)">A+</button>
+                <button class="font-btn" onclick="changeTextareaFont(-1)">A-</button>
+            </div>
+        </div>
+        <textarea id="lesson-notes" rows="4" placeholder="טקסט חופשי..."></textarea>
         
         <h3 style="margin-bottom: 10px;">כלי שרטוט</h3>
         <button id="btn-select" class="active" onclick="setMode('select')">👆 בחירה / שוטטות</button>
@@ -155,11 +173,23 @@
         let pendingPoints = [];
         let viewBounds = { minX: -20, maxX: 20, minY: -20, maxY: 20 };
         
+        // Textarea Font Size State
+        let currentTextareaFontSize = 14;
+
         // Dragging state
         let dragInfo = null;
         let hoverInfo = null;
         let mousePos = { x: 0, y: 0 }; 
         let activeEquation = null;
+
+        // Font Resize function
+        function changeTextareaFont(delta) {
+            const textarea = document.getElementById('lesson-notes');
+            currentTextareaFontSize += delta * 2;
+            if (currentTextareaFontSize < 10) currentTextareaFontSize = 10;
+            if (currentTextareaFontSize > 36) currentTextareaFontSize = 36;
+            textarea.style.fontSize = currentTextareaFontSize + 'px';
+        }
 
         // Viewport settings
         function setView(viewMode) {
