@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>משחק המוטציות והקערה</title>
+    <!-- טעינת מנוע הפיזיקה Matter.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a2e;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            text-align: center;
+            z-index: 10;
+            border: 1px solid #333;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            color: #e94560;
+        }
+
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type=range] {
+            width: 200px;
+            accent-color: #e94560;
+        }
+
+        #start-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            cursor: pointer;
+            flex-direction: column;
+        }
+
+        .btn {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        #game-canvas {
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            border-radius: 10px;
+            margin-top: 100px;
+            max-width: 100%;
+            max-height: calc(100vh - 120px);
+        }
+
+        /* סגנונות חדשים למסוף הבינה המלאכותית הניתן לגרירה */
+        #llm-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 350px;
+            background: rgba(15, 25, 20, 0.9);
+            border: 2px solid #39ff14;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(57, 255, 20, 0.3);
+            font-family: monospace;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #llm-header {
+            background: rgba(0, 50, 0, 0.8);
+            border-bottom: 1px solid #1a4d1a;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            user-select: none;
+        }
+
+        #llm-header h3 {
+            margin: 0; 
+            color: #39ff14; 
+            font-size: 16px;
+        }
+
+        .llm-controls {
+            display: flex;
+            gap: 5px;
+        }
+
+        .llm-control-btn {
+            background: none;
+            border: 1px solid #39ff14;
+            color: #39ff14;
+            cursor: pointer;
+            border-radius: 3px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .llm-control-btn:hover {
+            background: #39ff14;
+            color: #000;
+        }
+
+        #llm-content {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .llm-btn {
+            background: #2ecc71;
+            color: #000;
+            border: none;
+            padding: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.2s;
+        }
+
+        .llm-btn:hover {
+            background: #39ff14;
+            box-shadow: 0 0 10px #39ff14;
+        }
+
+        #llm-output {
+            color: #39ff14;
+            font-size: 14px;
+            min-height: 60px;
+            background: #000;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #1a4d1a;
+            direction: rtl;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="start-overlay" onclick="startGame()">
+        <h1 style="font-size: 40px; margin-bottom: 20px;">משחק הקערה והמוטציות</h1>
+        <p style="font-size: 18px; margin-bottom: 30px; max-width: 500px; text-align: center;">
+            כדורי גומי יפלו לקערה. המשקל שלהם יטה אותה. כדורים שיפלו למים הרדיואקטיביים יהפכו לזומבים דמויי אדם שמטפסים על קירות!
+        </p>
+        <button class="btn">לחץ כאן כדי להתחיל (ולהפעיל סאונד)</button>
+    </div>
+
+    <div id="ui-container">
+        <h1>שליטה בקצב</h1>
+        <div class="slider-container">
+            <label id="rate-label">קצב נוכחי: 1 כדורים לשנייה</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span>לאט</span>
+                <!-- מד השליטה (הפוך כי אנחנו ב-RTL) -->
+                <input type="range" id="spawnRate" min="0.2" max="10" step="0.2" value="1" dir="ltr">
+                <span>מהר</span>
+            </div>
+            <button class="btn" style="padding: 10px 20px; font-size: 16px; margin-top: 10px;" onclick="resetGame()">אפס את המסך</button>
+        </div>
+    </div>
+
+    <div id="game-container"></div>
+
+    <!-- מסוף בינה מלאכותית מעודכן -->
+    <div id="llm-panel">
+        <div id="llm-header">
+            <h3>מסוף בינה מלאכותית מדעית</h3>
+            <div class="llm-controls">
+                <button class="llm-control-btn" onclick="toggleLLMPanel()" title="מזער/הגדל">_</button>
+                <button class="llm-control-btn" onclick="closeLLMPanel()" title="סגור">X</button>
+            </div>
+        </div>
+        <div id="llm-content">
+            <button class="llm-btn" onclick="generateCommentary()">✨ בקש פרשנות שדרן ✨</button>
+            <button class="llm-btn" onclick="generateResearchLog()">✨ חשוף יומן מחקר סודי ✨</button>
+            <div id="llm-output">ממתין לפקודה...</div>
+        </div>
+    </div>
+
+    <script>
+        // --- משתנים גלובליים ---
+        let audioCtx;
+        let gameStarted = false;
+        let spawnInterval = 1000;
+        let lastSpawn = 0;
+        const sparks = [];
+        const drips = [];
+        const splashes = []; // למעקב אחרי חלקיקי השפריץ של החומצה
+
+        // --- הגדרות מנוע הפיזיקה ---
+        const Engine = Matter.Engine,
+              Render = Matter.Render,
+              Runner = Matter.Runner,
+              Bodies = Matter.Bodies,
+              Body = Matter.Body,
+              Composite = Matter.Composite,
+              Constraint = Matter.Constraint,
+              Events = Matter.Events,
+              Vector = Matter.Vector,
+              World = Matter.World; // שורה זו התווספה כדי לתקן את השגיאה
+
+        const width = 800;
+        const height = 600;
+
+        const engine = Engine.create();
+        const world = engine.world;
+
+        // יצירת הרנדר (ציור המסך)
+        const render = Render.create({
+            element: document.getElementById('game-container'),
+            engine: engine,
+            options: {
+                width: width,
+                height: height,
+                wireframes: false, // חובה כדי לראות צבעים
+                background: '#0f0f1a'
+            }
+        });
+        
+        render.canvas.id = 'game-canvas';
+
+        // --- סאונד ---
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // פונקציה להשמעת צפצוף קצר לקפיצה
+        function playBounceSound(velocity) {
+            if (!audioCtx) return;
+            const vol = Math.min(velocity / 25, 0.5); // עוצמה לפי מהירות הפגיעה
+            if (vol < 0.05) return; // מתעלמים מפגיעות חלשות מאוד
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(500 + Math.random() * 300, audioCtx.currentTime); // תדר גבוה קופצני
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        // פונקציה להשמעת רעש חומצה (שפריץ)
+        function playSplashSound() {
+            if (!audioCtx) return;
+            const bufferSize = audioCtx.sampleRate * 0.4;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1; // רעש לבן כדי לדמות התזה של נוזל
+            }
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 800;
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+
+            noise.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            noise.start();
+        }
+
+        // פונקציה להשמעת רעש זומבי
+        function playZombieSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(80 + Math.random() * 40, audioCtx.currentTime); // תדר נמוך ומפחיד
+            osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 1); 
+            
+            gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.3);
+            gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 1);
+        }
+
+        // --- בניית העולם ---
+
+        // קירות
+        const wallOptions = { isStatic: true, render: { fillStyle: '#2a2a35' } };
+        const leftWall = Bodies.rectangle(10, height / 2, 20, height, wallOptions);
+        const rightWall = Bodies.rectangle(width - 10, height / 2, 20, height, wallOptions);
+        
+        // מים רדיואקטיביים בתחתית
+        const water = Bodies.rectangle(width / 2, height - 15, width, 30, { 
+            isStatic: true, 
+            label: 'water',
+            render: { fillStyle: '#39ff14' } // ירוק זוהר
+        });
+
+        // יצירת הקערה
+        // מורכבת מ-3 חלקים כדי לאפשר כניסת כדורים פנימה
+        const bowlBottom = Bodies.rectangle(width / 2, 350, 160, 20, { render: { fillStyle: '#bdc3c7' } });
+        const bowlLeft = Bodies.rectangle(width / 2 - 90, 310, 20, 100, { angle: -Math.PI / 5, render: { fillStyle: '#bdc3c7' } });
+        const bowlRight = Bodies.rectangle(width / 2 + 90, 310, 20, 100, { angle: Math.PI / 5, render: { fillStyle: '#bdc3c7' } });
+        
+        const bowl = Body.create({
+            parts: [bowlBottom, bowlLeft, bowlRight],
+            label: 'bowl',
+            friction: 0.1,
+            restitution: 0.4
+        });
+
+        // חיבור הקערה לציר (Pivot) כדי שתוכל לנטות
+        const bowlPivot = Constraint.create({
+            pointA: { x: width / 2, y: 350 }, // נקודת העיגון בחלל
+            bodyB: bowl, // הגוף שמחובר
+            pointB: { x: 0, y: 0 }, // נקודת העיגון ביחס למרכז הקערה
+            stiffness: 1, // קשיח לגמרי (לא קפיצי במשיכה)
+            length: 0
+        });
+
+        World.add(world, [leftWall, rightWall, water, bowl, bowlPivot]);
+
+        // --- לוגיקת המשחק ---
+
+        // פונקציית איפוס - מנקה את כל הכדורים והזומבים
+        function resetGame() {
+            const bodies = Composite.allBodies(world);
+            const toRemove = bodies.filter(b => b.label === 'ball' || b.label === 'zombie');
+            World.remove(world, toRemove);
+        }
+
+        // יצירת כדור חדש
+        function spawnBall() {
+            const xPos = width / 2 + (Math.random() - 0.5) * 40; // מיקום אקראי קל באזור האמצע
+            const colors = ['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c', '#ffffff', '#ff9ff3'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            
+            const ball = Bodies.circle(xPos, -20, 12, {
+                label: 'ball',
+                restitution: 0.95, // גומי קופצני מאוד (1.0 זה קפיצי מושלם)
+                friction: 0.005,
+                frictionAir: 0.001,
+                density: 0.01,
+                render: { fillStyle: randomColor } // צבע רנדומלי
+            });
+            World.add(world, ball);
+        }
+
+        // יצירת חלקיקי שפריץ של חומצה
+        function createSplash(x, y) {
+            for(let i = 0; i < 30; i++) {
+                splashes.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 15,
+                    vy: (Math.random() * -12) - 3, // עף למעלה והחוצה
+                    life: 1.0,
+                    size: Math.random() * 6 + 2
+                });
+            }
+        }
+
+        // יצירת חלקיקי ניצוצות
+        function createSparks(x, y) {
+            for(let i = 0; i < 8; i++) {
+                sparks.push({
+                    x: x, 
+                    y: y,
+                    vx: (Math.random() - 0.5) * 12,
+                    vy: (Math.random() - 0.5) * 12,
+                    life: 1.0,
+                    color: Math.random() > 0.5 ? '#f1c40f' : '#e67e22' // צהוב או כתום
+                });
+            }
+        }
+
+        // יצירת חלקיקי טיפטוף מיץ ירוק
+        function createDrip(x, y) {
+            drips.push({
+                x: x, 
+                y: y,
+                vx: (Math.random() - 0.5) * 1,
+                vy: Math.random() * 2 + 1, // נופל למטה
+                alpha: 1.0
+            });
+        }
+
+        // --- אירועים ועדכונים קבועים ---
+
+        Events.on(engine, 'beforeUpdate', () => {
+            if (!gameStarted) return;
+
+            const now = engine.timing.timestamp;
+            
+            // 1. הפלת כדורים לפי המדד
+            if (now - lastSpawn > spawnInterval) {
+                spawnBall();
+                lastSpawn = now;
+            }
+
+            // 2. כוח קפיצי לקערה שתשאף לחזור לאמצע (זווית 0)
+            // מומנט (Torque) מופעל בניגוד לזווית הנוכחית
+            bowl.torque = -bowl.angle * 0.08 * bowl.mass; 
+            
+            // ריסון קל לזווית הקערה כדי שלא תתנדנד לנצח
+            Body.setAngularVelocity(bowl, bowl.angularVelocity * 0.97);
+
+            // 3. לוגיקת הזומבים
+            const bodies = Composite.allBodies(world);
+            bodies.forEach(b => {
+                if (b.label === 'zombie') {
+                    const nearLeftWall = b.position.x < 45;
+                    const nearRightWall = b.position.x > width - 45;
+                    
+                    if (nearLeftWall || nearRightWall) {
+                        // טיפוס למעלה על הקיר
+                        Body.setVelocity(b, { 
+                            x: (nearLeftWall ? -1 : 1) * 0.5, // נצמדים לקיר
+                            y: -1.5 // מטפסים לאט למעלה
+                        });
+                    } else {
+                        // הליכה איטית לצדדים
+                        Body.setVelocity(b, { 
+                            x: b.zombieDir * 1.0, 
+                            y: b.velocity.y 
+                        });
+                    }
+
+                    // טיפטוף רנדומלי של מיץ ירוק מתוך הזומבי
+                    if (Math.random() < 0.05) {
+                        createDrip(b.position.x, b.position.y);
+                    }
+
+                    // השמעת רעש זומבי במהלך הליכה (הסתברות קטנה לכל פריים)
+                    if (Math.random() < 0.003) {
+                        playZombieSound();
+                    }
+                }
+
+                // ניקוי כדורים וזומבים שיצאו מגבולות המסך (למעלה מדי)
+                if (b.position.y < -100) {
+                    World.remove(world, b);
+                }
+            });
+        });
+
+        // זיהוי התנגשויות (סאונד, ניצוצות, וזומבים)
+        Events.on(engine, 'collisionStart', (event) => {
+            const pairs = event.pairs;
+            
+            pairs.forEach((pair) => {
+                const { bodyA, bodyB } = pair;
+                
+                const isWater = bodyA.label === 'water' || bodyB.label === 'water';
+                const isBallA = bodyA.label === 'ball';
+                const isBallB = bodyB.label === 'ball';
+                
+                // --- זומבי ממים רדיואקטיביים ---
+                if (isWater && (isBallA || isBallB)) {
+                    const ball = isBallA ? bodyA : bodyB;
+                    
+                    if (ball.label === 'ball') { // מוודאים שהופך רק פעם אחת
+                        // הופך לזומבי
+                        ball.label = 'zombie';
+                        ball.render.visible = false; // מסתירים את הכדור הרגיל כדי לצייר זומבי במקום
+                        
+                        // גורם לזומבי להישאר זקוף ולא להתגלגל
+                        Body.setInertia(ball, Infinity);
+                        Body.setAngle(ball, 0);
+                        
+                        ball.restitution = 0.1; // פחות קופצני
+                        ball.friction = 0.8; // יותר חיכוך
+                        
+                        // מחליט על כיוון הליכה (ימינה 1, שמאלה 1-)
+                        ball.zombieDir = Math.random() > 0.5 ? 1 : -1;
+                        
+                        // נותן קפיצה קטנה כדי לצאת קצת מהמים
+                        Body.setVelocity(ball, { x: ball.velocity.x, y: -6 });
+                        
+                        // יצירת השפריץ והשמעת הסאונד
+                        createSplash(ball.position.x, water.position.y - 15);
+                        playSplashSound();
+                        playZombieSound(); // הזומבי עושה רעש כשהוא נולד
+                    }
+                }
+
+                // --- ניצוצות וסאונד בהתנגשות בקערה ---
+                const isBowlPart = (body) => body === bowl || (body.parent && body.parent.label === 'bowl');
+                const hitBowl = isBowlPart(bodyA) || isBowlPart(bodyB);
+                
+                if (hitBowl && (isBallA || isBallB || bodyA.label === 'zombie' || bodyB.label === 'zombie')) {
+                    const movingBody = (isBallA || bodyA.label === 'zombie') ? bodyA : bodyB;
+                    const speed = Vector.magnitude(movingBody.velocity);
+                    
+                    // רק אם הפגיעה חזקה מספיק
+                    if (speed > 2) {
+                        // צליל
+                        playBounceSound(speed);
+                        
+                        // מציאת נקודת ההתנגשות
+                        if (pair.activeContacts && pair.activeContacts.length > 0) {
+                            const contactPoint = pair.activeContacts[0].vertex;
+                            createSparks(contactPoint.x, contactPoint.y);
+                        } else {
+                            createSparks(movingBody.position.x, movingBody.position.y);
+                        }
+                    }
+                }
+            });
+        });
+
+        // --- ציור אפקטים מעל מנוע הפיזיקה ---
+        Events.on(render, 'afterRender', function() {
+            const ctx = render.context;
+            
+            // ציור המים הזוהרים
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#39ff14';
+            ctx.fillStyle = 'rgba(57, 255, 20, 0.6)';
+            ctx.fillRect(0, height - 30, width, 30);
+            ctx.shadowBlur = 0; // איפוס
+
+            // ציור חלקיקי השפריץ של החומצה
+            for (let i = splashes.length - 1; i >= 0; i--) {
+                const sp = splashes[i];
+                sp.x += sp.vx;
+                sp.y += sp.vy;
+                sp.vy += 0.5; // כוח המשיכה מושך את הטיפות למטה
+                sp.life -= 0.025;
+                
+                if (sp.life <= 0) {
+                    splashes.splice(i, 1);
+                    continue;
+                }
+                
+                ctx.globalAlpha = sp.life;
+                ctx.fillStyle = '#39ff14'; // ירוק חומצי זוהר
+                ctx.beginPath();
+                ctx.arc(sp.x, sp.y, sp.size, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
+            // ציור הזומבים
+            const bodies = Composite.allBodies(world);
+            bodies.forEach(b => {
+                if (b.label === 'zombie') {
+                    ctx.save();
+                    ctx.translate(b.position.x, b.position.y);
+                    
+                    const nearLeftWall = b.position.x < 45;
+                    const nearRightWall = b.position.x > width - 45;
+                    
+                    // סיבוב בהתאם לקיר אם הוא מטפס
+                    if (nearLeftWall) {
+                        ctx.rotate(Math.PI / 2); // הרגליים לקיר השמאלי
+                    } else if (nearRightWall) {
+                        ctx.rotate(-Math.PI / 2); // הרגליים לקיר הימני
+                    }
+
+                    // סגנון ציור הזומבי
+                    ctx.fillStyle = '#2ecc71'; // ירוק זומבי
+                    ctx.strokeStyle = '#27ae60';
+                    ctx.lineWidth = 2.5;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+
+                    const dir = b.zombieDir;
+                    const time = engine.timing.timestamp * 0.005;
+                    // אנימציית הליכה רק אם הוא זז משמעותית
+                    const isMoving = Math.abs(b.velocity.x) > 0.1 || Math.abs(b.velocity.y) > 0.1;
+                    const walkAnim = isMoving ? Math.sin(time) : 0;
+
+                    // ראש
+                    ctx.beginPath();
+                    ctx.arc(0, -8, 5, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // גוף
+                    ctx.beginPath();
+                    ctx.moveTo(0, -3);
+                    ctx.lineTo(0, 6);
+                    ctx.stroke();
+
+                    // ידיים (מושטות קדימה כמו זומבי)
+                    ctx.beginPath();
+                    ctx.moveTo(0, -1);
+                    ctx.lineTo(dir * 8, -2 + walkAnim * 2);
+                    ctx.stroke();
+
+                    // רגליים
+                    ctx.beginPath();
+                    ctx.moveTo(0, 6);
+                    ctx.lineTo(dir * walkAnim * 5, 14); // רגל אחת זזה קדימה
+                    ctx.moveTo(0, 6);
+                    ctx.lineTo(-dir * walkAnim * 5, 14); // רגל שנייה זזה אחורה
+                    ctx.stroke();
+
+                    ctx.restore();
+                }
+            });
+
+            // ציור הניצוצות
+            for (let i = sparks.length - 1; i >= 0; i--) {
+                const s = sparks[i];
+                s.x += s.vx;
+                s.y += s.vy;
+                s.life -= 0.04;
+                
+                if (s.life <= 0) {
+                    sparks.splice(i, 1);
+                    continue;
+                }
+                
+                ctx.globalAlpha = s.life;
+                ctx.fillStyle = s.color;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, 2.5, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
+            // ציור טיפטופי המיץ הירוק
+            for (let i = drips.length - 1; i >= 0; i--) {
+                const d = drips[i];
+                d.x += d.vx;
+                d.y += d.vy;
+                d.alpha -= 0.015;
+                
+                if (d.alpha <= 0) {
+                    drips.splice(i, 1);
+                    continue;
+                }
+                
+                ctx.globalAlpha = d.alpha;
+                ctx.fillStyle = '#39ff14';
+                ctx.beginPath();
+                ctx.arc(d.x, d.y, 2, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+        });
+
+        // --- אתחול והפעלת המשחק ---
+        
+        function startGame() {
+            document.getElementById('start-overlay').style.display = 'none';
+            initAudio();
+            
+            if (!gameStarted) {
+                gameStarted = true;
+                Render.run(render);
+                const runner = Runner.create();
+                Runner.run(runner, engine);
+            }
+        }
+
+        // ניהול המדד (Slider)
+        document.getElementById('spawnRate').addEventListener('input', (e) => {
+            const rate = parseFloat(e.target.value);
+            spawnInterval = 1000 / rate; // לדוגמה: קצב 2 אומר כל חצי שנייה (500ms)
+            document.getElementById('rate-label').innerText = `קצב נוכחי: ${rate.toFixed(1)} כדורים לשנייה`;
+        });
+
+        // --- שילובי Gemini API ---
+        const apiKey = ""; // המפתח מסופק אוטומטית על ידי הסביבה
+        let typingInterval = null;
+
+        async function fetchGeminiWithRetry(prompt) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: "You are a dramatic, unhinged scientist and sports announcer reporting on a game where bouncy balls turn into climbing zombies by falling into radioactive acid. Respond only in Hebrew. Be highly creative, funny, and chaotic. Maximum 2 sentences." }] }
+            };
+
+            let delay = 1000;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+                    return data.candidates[0].content.parts[0].text.trim();
+                } catch (error) {
+                    if (i === 4) return "שגיאה בחיבור למעבדה המרכזית. הראדיאציה גבוהה מדי!";
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        function typeText(text) {
+            const outputEl = document.getElementById('llm-output');
+            outputEl.innerHTML = '';
+            if (typingInterval) clearInterval(typingInterval);
+            
+            let i = 0;
+            typingInterval = setInterval(() => {
+                outputEl.innerHTML += text.charAt(i);
+                i++;
+                if (i >= text.length) clearInterval(typingInterval);
+            }, 30);
+        }
+
+        async function generateCommentary() {
+            const outputEl = document.getElementById('llm-output');
+            outputEl.innerHTML = "מנתח נתוני שטח...";
+            
+            const bodies = Composite.allBodies(world);
+            const ballsCount = bodies.filter(b => b.label === 'ball').length;
+            const zombiesCount = bodies.filter(b => b.label === 'zombie').length;
+            const tilt = (bowl.angle * 180 / Math.PI).toFixed(1);
+
+            const prompt = `דווח בזמן אמת! המצב כרגע: יש ${ballsCount} כדורים בקערה, ${zombiesCount} זומבים מטפסים על הקירות, והקערה בשיפוע של ${tilt} מעלות. תן פרשנות מצחיקה על המצב!`;
+            
+            const response = await fetchGeminiWithRetry(prompt);
+            typeText(response);
+        }
+
+        async function generateResearchLog() {
+            const outputEl = document.getElementById('llm-output');
+            outputEl.innerHTML = "שולף רשומות מסווגות...";
+            
+            const prompt = "ספר יומן מחקר קצר וקורע מצחוק על תגלית אקראית שקרתה עכשיו עם החומצה הירוקה ואחד הכדורים שהפך לזומבי. מה קרה לו?";
+            const response = await fetchGeminiWithRetry(prompt);
+            typeText(response);
+        }
+
+        // --- פונקציות חלון גרירה, מזעור וסגירה ---
+        const llmPanel = document.getElementById('llm-panel');
+        const llmHeader = document.getElementById('llm-header');
+        const llmContent = document.getElementById('llm-content');
+        
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+
+        llmHeader.addEventListener('mousedown', (e) => {
+            // אם לחצו על כפתור כלשהו בתוך ה-header, אל תתחיל גרירה
+            if(e.target.tagName.toLowerCase() === 'button') return;
+
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            const rect = llmPanel.getBoundingClientRect();
+            initialX = rect.left;
+            initialY = rect.top;
+            
+            document.body.style.userSelect = 'none'; // מונע סימון טקסט תוך כדי גרירה
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            
+            llmPanel.style.left = `${initialX + dx}px`;
+            llmPanel.style.top = `${initialY + dy}px`;
+            llmPanel.style.bottom = 'auto'; 
+            llmPanel.style.right = 'auto'; 
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            document.body.style.userSelect = '';
+        });
+
+        // מזעור / הגדלה של החלון
+        function toggleLLMPanel() {
+            if (llmContent.style.display === 'none') {
+                llmContent.style.display = 'flex';
+            } else {
+                llmContent.style.display = 'none';
+            }
+        }
+
+        // סגירת החלון
+        function closeLLMPanel() {
+            llmPanel.style.display = 'none';
+        }
+
+    </script>
+</body>
+</html>
