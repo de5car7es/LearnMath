@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>משחק כיבוי אש מציאותי</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1e272e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            background-color: #000;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.8);
+            border-radius: 12px;
+            border: 4px solid #485460;
+        }
+        .instructions {
+            margin-bottom: 15px;
+            text-align: center;
+            background: rgba(0,0,0,0.5);
+            padding: 15px 25px;
+            border-radius: 8px;
+            border: 1px solid #3c6382;
+        }
+        h1 {
+            margin: 0 0 5px 0;
+            font-size: 26px;
+            color: #ff9f43;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        p {
+            margin: 0;
+            font-size: 16px;
+            color: #d2dae2;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="instructions">
+        <h1>גיבור כיבוי אש: סכנה ביער 🚒🔥</h1>
+        <p>זז עם <b>W A S D</b> | השפרץ מים עם <b>רווח</b> | אל תיגע באש, אחרת תישרף!</p>
+    </div>
+
+    <canvas id="gameCanvas" width="900" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- מערכת סאונד - חצוצרה עצובה (Web Audio API) ---
+        let audioCtx = null;
+        let soundPlayed = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+        // דורש אינטראקציה מהשחקן כדי להפעיל סאונד בדפדפנים מודרניים
+        window.addEventListener('keydown', initAudio, { once: true });
+
+        function playSadTrumpet() {
+            if (soundPlayed || !audioCtx) return;
+            soundPlayed = true;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle'; // צליל שמזכיר כלי נשיפה עמום
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+            
+            // תו 1
+            osc.frequency.setValueAtTime(300, now);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+            
+            // תו 2
+            osc.frequency.setValueAtTime(285, now + 0.5);
+            gain.gain.setValueAtTime(0.3, now + 0.5);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.9);
+            
+            // תו 3
+            osc.frequency.setValueAtTime(270, now + 1.0);
+            gain.gain.setValueAtTime(0.3, now + 1.0);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 1.4);
+            
+            // תו 4 (נפילה ארוכה של הצליל - Womp Womp)
+            osc.frequency.setValueAtTime(250, now + 1.5);
+            osc.frequency.exponentialRampToValueAtTime(100, now + 3.0);
+            gain.gain.setValueAtTime(0.3, now + 1.5);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 3.0);
+            
+            osc.start(now);
+            osc.stop(now + 3.0);
+        }
+
+        // --- מצב המשחק ---
+        let gameState = 'playing'; // 'playing', 'gameover', 'win'
+        
+        const keys = {
+            w: false, a: false, s: false, d: false, space: false
+        };
+
+        const player = {
+            x: 300,
+            y: 450,
+            radius: 15,
+            speed: 3.5,
+            color: '#f1c40f',
+            facing: {x: 1, y: 0},
+            isBurning: false,
+            burnStartTime: 0
+        };
+
+        const truck = {
+            x: 40,
+            y: 250,
+            width: 160,
+            height: 80,
+            hoseConnection: { x: 180, y: 290 }
+        };
+
+        const house = {
+            x: 300,
+            y: 180,
+            width: 180,
+            height: 160
+        };
+
+        // יצירת יער עבות (הרבה עצים)
+        const trees = [];
+        for (let i = 0; i < 60; i++) {
+            let tx = 450 + Math.random() * 430;
+            let ty = 30 + Math.random() * 540;
+            
+            // מניעת יצירת עצים בתוך הבית
+            if (tx > house.x - 40 && tx < house.x + house.width + 40 &&
+                ty > house.y - 40 && ty < house.y + house.height + 40) {
+                continue; 
+            }
+            
+            trees.push({
+                x: tx,
+                y: ty,
+                radius: 15 + Math.random() * 20,
+                fireIntensity: Math.random() > 0.15 ? 100 : 0, // רוב היער בוער
+                darkGreen: `rgb(30, ${60 + Math.random()*40}, 30)`,
+                lightGreen: `rgb(40, ${90 + Math.random()*50}, 40)`
+            });
+        }
+
+        const waterParticles = [];
+
+        // --- מאזינים למקלדת ---
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key) || key === ' ') {
+                if (key === ' ') keys.space = true;
+                else keys[key] = true;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key) || key === ' ') {
+                if (key === ' ') keys.space = false;
+                else keys[key] = false;
+            }
+        });
+
+        // --- פונקציות ציור ריאליסטיות ---
+
+        function drawBackground() {
+            // רקע דשא עם גרדיאנט לתחושת עומק
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, '#4b7922');
+            grad.addColorStop(1, '#2d4c14');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawTruck() {
+            ctx.save();
+            ctx.shadowColor = 'rgba(0,0,0,0.6)';
+            ctx.shadowBlur = 15;
+            ctx.shadowOffsetY = 10;
+            
+            ctx.fillStyle = '#b33939';
+            ctx.fillRect(truck.x, truck.y, truck.width, truck.height);
+            ctx.shadowColor = 'transparent'; // עצירת הצל עבור רכיבים פנימיים
+            
+            ctx.fillStyle = '#ff5252';
+            ctx.fillRect(truck.x, truck.y, truck.width, truck.height / 2);
+            
+            ctx.fillStyle = '#dcdde1';
+            ctx.fillRect(truck.x + 110, truck.y + 10, 40, 30);
+            
+            // גלגלים מוצללים
+            ctx.fillStyle = '#1e272e';
+            ctx.beginPath();
+            ctx.arc(truck.x + 30, truck.y + truck.height, 18, 0, Math.PI * 2);
+            ctx.arc(truck.x + 130, truck.y + truck.height, 18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#7f8fa6';
+            ctx.beginPath();
+            ctx.arc(truck.x + 30, truck.y + truck.height, 8, 0, Math.PI * 2);
+            ctx.arc(truck.x + 130, truck.y + truck.height, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // צ'קלקה
+            const time = Date.now();
+            ctx.fillStyle = (Math.floor(time / 150) % 2 === 0) ? '#00a8ff' : '#0097e6';
+            ctx.beginPath();
+            ctx.arc(truck.x + 130, truck.y - 5, 8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#718093';
+            ctx.fillRect(truck.x + truck.width - 5, truck.hoseConnection.y - 10, 10, 20);
+            ctx.restore();
+        }
+
+        function drawHouse() {
+            ctx.save();
+            ctx.shadowColor = 'rgba(0,0,0,0.7)';
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetY = 12;
+            
+            // קיר
+            ctx.fillStyle = '#dcdde1';
+            ctx.fillRect(house.x, house.y, house.width, house.height);
+            ctx.shadowColor = 'transparent';
+            
+            // גג תלת ממדי (הצללה)
+            const rGrad = ctx.createLinearGradient(house.x, house.y - 70, house.x, house.y);
+            rGrad.addColorStop(0, '#c23616');
+            rGrad.addColorStop(1, '#8c2610');
+            ctx.fillStyle = rGrad;
+            ctx.beginPath();
+            ctx.moveTo(house.x - 20, house.y);
+            ctx.lineTo(house.x + house.width / 2, house.y - 80);
+            ctx.lineTo(house.x + house.width + 20, house.y);
+            ctx.fill();
+
+            // דלת
+            ctx.fillStyle = '#2f3640';
+            ctx.fillRect(house.x + 70, house.y + 90, 40, 70);
+
+            // חלונות עם החזר אור
+            const wGrad = ctx.createLinearGradient(0, house.y + 40, 0, house.y + 80);
+            wGrad.addColorStop(0, '#00a8ff');
+            wGrad.addColorStop(1, '#192a56');
+            ctx.fillStyle = wGrad;
+            ctx.fillRect(house.x + 20, house.y + 40, 40, 40);
+            ctx.fillRect(house.x + 120, house.y + 40, 40, 40);
+            ctx.strokeStyle = '#273c75';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(house.x + 20, house.y + 40, 40, 40);
+            ctx.strokeRect(house.x + 120, house.y + 40, 40, 40);
+            ctx.restore();
+        }
+
+        function drawTree(tree) {
+            ctx.save();
+            // צל מתחת לעץ
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.beginPath();
+            ctx.ellipse(tree.x, tree.y + 5, tree.radius, tree.radius/2, 0, 0, Math.PI*2);
+            ctx.fill();
+            
+            // גזע
+            ctx.fillStyle = '#4e342e';
+            ctx.fillRect(tree.x - 6, tree.y - 15, 12, tree.radius + 15);
+            
+            // צמרת (גרדיאנט לכדוריות)
+            let grad = ctx.createRadialGradient(tree.x - tree.radius/3, tree.y - 20 - tree.radius/3, 0, tree.x, tree.y - 20, tree.radius);
+            grad.addColorStop(0, tree.lightGreen);
+            grad.addColorStop(1, tree.darkGreen);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(tree.x, tree.y - 20, tree.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // ציור אש מציאותית עם מיזוג צבעים מבהיר
+            if (tree.fireIntensity > 0) {
+                ctx.globalCompositeOperation = 'lighter';
+                const fireRadius = (tree.fireIntensity / 100) * tree.radius * 1.8;
+                const jitter = Math.random() * 8; // רעידות של האש
+                
+                let fGrad = ctx.createRadialGradient(tree.x, tree.y - 15, 0, tree.x, tree.y - 15, fireRadius + jitter);
+                fGrad.addColorStop(0, 'rgba(255, 255, 0, 0.9)');
+                fGrad.addColorStop(0.3, 'rgba(255, 100, 0, 0.7)');
+                fGrad.addColorStop(0.6, 'rgba(255, 0, 0, 0.3)');
+                fGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                
+                ctx.fillStyle = fGrad;
+                ctx.beginPath();
+                ctx.arc(tree.x, tree.y - 15, fireRadius + jitter, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawHose() {
+            ctx.save();
+            // עובי חיצוני לצל
+            ctx.strokeStyle = '#2f3640';
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(truck.hoseConnection.x, truck.hoseConnection.y);
+            
+            const cpX = (truck.hoseConnection.x + player.x) / 2;
+            const distance = Math.abs(player.x - truck.hoseConnection.x);
+            const cpY = Math.max(truck.hoseConnection.y, player.y) + distance * 0.25 + 20; 
+            
+            ctx.quadraticCurveTo(cpX, cpY, player.x, player.y);
+            ctx.stroke();
+
+            // עובי פנימי לאפקט תלת ממד
+            ctx.strokeStyle = '#576574';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawPlayer() {
+            ctx.save();
+            
+            // צל של השחקן
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.beginPath();
+            ctx.ellipse(player.x, player.y + player.radius, player.radius, player.radius/2, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            // אפקט השחקן עולה באש
+            if (player.isBurning) {
+                ctx.globalCompositeOperation = 'lighter';
+                const burnRadius = player.radius * 2.5 + Math.random() * 5;
+                let fGrad = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, burnRadius);
+                fGrad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+                fGrad.addColorStop(0.2, 'rgba(255, 200, 0, 0.8)');
+                fGrad.addColorStop(0.5, 'rgba(255, 50, 0, 0.5)');
+                fGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = fGrad;
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, burnRadius, 0, Math.PI*2);
+                ctx.fill();
+                ctx.globalCompositeOperation = 'source-over';
+            }
+
+            // גוף וקסדה
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#c0392b';
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius - 2, Math.PI, 0);
+            ctx.fill();
+
+            // פיית מים
+            const nozzleX = player.x + player.facing.x * 16;
+            const nozzleY = player.y + player.facing.y * 16;
+            ctx.fillStyle = '#bdc3c7';
+            ctx.beginPath();
+            ctx.arc(nozzleX, nozzleY, 5, 0, Math.PI*2);
+            ctx.fill();
+            
+            // טיימר לשריפה מעל השחקן
+            if (player.isBurning && gameState === 'playing') {
+                const timeLeft = Math.max(0, 3 - ((Date.now() - player.burnStartTime) / 1000)).toFixed(1);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 18px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#000';
+                ctx.shadowBlur = 5;
+                ctx.fillText(timeLeft + 's', player.x, player.y - 25);
+            }
+
+            ctx.restore();
+        }
+
+        function drawWater() {
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            waterParticles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.restore();
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#ff4757';
+            ctx.font = 'bold 70px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#000';
+            ctx.shadowBlur = 20;
+            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 30);
+            
+            ctx.fillStyle = '#dfe4ea';
+            ctx.font = '24px sans-serif';
+            ctx.fillText('נשרפת בחיים! חבל...', canvas.width / 2, canvas.height / 2 + 20);
+            ctx.font = '18px sans-serif';
+            ctx.fillStyle = '#feca57';
+            ctx.fillText('לחץ F5 כדי לנסות שוב', canvas.width / 2, canvas.height / 2 + 60);
+        }
+
+        // --- לוגיקה ועדכון ---
+
+        function checkCollision(nx, ny) {
+            if (nx - player.radius < 0 || nx + player.radius > canvas.width ||
+                ny - player.radius < 0 || ny + player.radius > canvas.height) {
+                return true;
+            }
+            if (nx + player.radius > house.x && nx - player.radius < house.x + house.width &&
+                ny + player.radius > house.y && ny - player.radius < house.y + house.height) {
+                return true;
+            }
+            if (nx + player.radius > truck.x && nx - player.radius < truck.x + truck.width &&
+                ny + player.radius > truck.y && ny - player.radius < truck.y + truck.height) {
+                return true;
+            }
+            return false;
+        }
+
+        function update() {
+            if (gameState !== 'playing') return;
+
+            // תנועה של השחקן (האטה אם הוא נשרף)
+            const currentSpeed = player.isBurning ? player.speed * 0.6 : player.speed;
+            let dx = 0, dy = 0;
+            
+            if (keys.w) dy -= currentSpeed;
+            if (keys.s) dy += currentSpeed;
+            if (keys.a) dx -= currentSpeed;
+            if (keys.d) dx += currentSpeed;
+
+            if (dx !== 0 && dy !== 0) {
+                const length = Math.sqrt(dx*dx + dy*dy);
+                dx = (dx / length) * currentSpeed;
+                dy = (dy / length) * currentSpeed;
+            }
+
+            if (dx !== 0 || dy !== 0) {
+                const length = Math.sqrt(dx*dx + dy*dy);
+                player.facing.x = dx / length;
+                player.facing.y = dy / length;
+            }
+
+            if (!checkCollision(player.x + dx, player.y)) player.x += dx;
+            if (!checkCollision(player.x, player.y + dy)) player.y += dy;
+
+            // סכנת חיים: בדיקה אם השחקן נוגע באש
+            let touchingFire = false;
+            for (let tree of trees) {
+                if (tree.fireIntensity > 20) { // אש גדולה מספיק בשביל לפגוע
+                    const dist = Math.sqrt(Math.pow(player.x - tree.x, 2) + Math.pow(player.y - tree.y, 2));
+                    if (dist < player.radius + tree.radius) {
+                        touchingFire = true;
+                        break;
+                    }
+                }
+            }
+
+            if (touchingFire && !player.isBurning) {
+                player.isBurning = true;
+                player.burnStartTime = Date.now();
+            } else if (!touchingFire && player.isBurning) {
+                // אופציונלי: האם ברגע שבורחים מהאש הוא מפסיק לבעור? בוא ניתן לו להמשיך לבעור אלא אם יכבו אותו!
+            }
+
+            // בדיקת פסילה
+            if (player.isBurning) {
+                if (Date.now() - player.burnStartTime > 3000) {
+                    gameState = 'gameover';
+                    playSadTrumpet();
+                    return; // עצור עדכון
+                }
+            }
+
+            // יצירת חלקיקי מים
+            if (keys.space) {
+                const nozzleX = player.x + player.facing.x * 16;
+                const nozzleY = player.y + player.facing.y * 16;
+                
+                for(let i=0; i<4; i++) {
+                    const spread = 0.3;
+                    const angleOffset = (Math.random() - 0.5) * spread;
+                    const vx = player.facing.x * Math.cos(angleOffset) - player.facing.y * Math.sin(angleOffset);
+                    const vy = player.facing.x * Math.sin(angleOffset) + player.facing.y * Math.cos(angleOffset);
+
+                    waterParticles.push({
+                        x: nozzleX,
+                        y: nozzleY,
+                        vx: vx * (7 + Math.random() * 5),
+                        vy: vy * (7 + Math.random() * 5),
+                        radius: 2 + Math.random() * 4,
+                        life: 45,
+                        // גיוון בצבע המים הניתזים (כחול עד לבן)
+                        color: Math.random() > 0.3 ? 'rgba(116, 185, 255, 0.7)' : 'rgba(223, 230, 233, 0.8)'
+                    });
+                }
+            }
+
+            // עדכון המים ובדיקת כיבוי אש
+            for (let i = waterParticles.length - 1; i >= 0; i--) {
+                const p = waterParticles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+
+                if (p.life <= 0) {
+                    waterParticles.splice(i, 1);
+                    continue;
+                }
+
+                // בדיקת פגיעה בעצים בוערים
+                trees.forEach(tree => {
+                    if (tree.fireIntensity > 0) {
+                        const dist = Math.sqrt(Math.pow(p.x - tree.x, 2) + Math.pow(p.y - tree.y, 2));
+                        if (dist < tree.radius * 2) {
+                            tree.fireIntensity -= 0.6; 
+                            waterParticles.splice(i, 1); 
+                            if (tree.fireIntensity < 0) tree.fireIntensity = 0;
+                        }
+                    }
+                });
+
+                // בדיקת פגיעה בשחקן בוער (מים על עצמך)
+                // אם המים נופלים על השחקן אפשר לכבות אותו (קשה כי הוא משפריץ החוצה, אבל אפשרי אם רצים למים)
+                if (player.isBurning) {
+                    const dist = Math.sqrt(Math.pow(p.x - player.x, 2) + Math.pow(p.y - player.y, 2));
+                    if (dist < player.radius * 1.5) {
+                        player.isBurning = false; // כובתה האש על השחקן!
+                    }
+                }
+            }
+        }
+
+        // --- לולאת המשחק ---
+        function gameLoop() {
+            update();
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
+
+            // ציור צינור מאחורי הדמויות
+            drawHose();
+
+            // מיון ציור לפי ציר ה-Y (עומק מציאותי - דמויות קדמיות מסתירות אחוריות)
+            const renderables = [];
+            renderables.push({ y: house.y + house.height, draw: drawHouse });
+            renderables.push({ y: truck.y + truck.height, draw: drawTruck });
+            renderables.push({ y: player.y, draw: drawPlayer });
+            trees.forEach(t => {
+                renderables.push({ y: t.y, draw: () => drawTree(t) });
+            });
+
+            // מיון (לפי נקודת הבסיס הנמוכה ביותר שלהם במסך)
+            renderables.sort((a, b) => a.y - b.y);
+
+            // ציור ממוין
+            renderables.forEach(r => r.draw());
+
+            // המים מצוירים תמיד מעל הכל
+            drawWater();
+
+            // מסכי סיום מיוחדים
+            if (gameState === 'gameover') {
+                drawGameOver();
+            } else {
+                const firesLeft = trees.some(t => t.fireIntensity > 0);
+                if (!firesLeft && gameState !== 'win') {
+                    gameState = 'win';
+                }
+                
+                if (gameState === 'win') {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#2ecc71';
+                    ctx.font = 'bold 45px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.shadowColor = '#000';
+                    ctx.shadowBlur = 10;
+                    ctx.fillText('גיבור! הצלת את היער! 🚒🌳', canvas.width / 2, canvas.height / 2);
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // התחלה
+        gameLoop();
+    </script>
+</body>
+</html>
